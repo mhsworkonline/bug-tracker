@@ -25,7 +25,7 @@ export interface ProjectData {
   toggleTask: (taskId: string) => Promise<void>;
   deleteTask: (taskId: string) => Promise<void>;
   addAttachment: (taskId: string, att: Omit<Attachment, "id" | "task_id" | "uploaded_at">) => Promise<void>;
-  removeAttachment: (attId: string, taskId: string) => Promise<void>;
+  removeAttachment: (attId: string, taskId: string, fileUrl?: string) => Promise<void>;
   updateColumnConfig: (key: ColumnKey, visible: boolean) => Promise<void>;
 }
 
@@ -107,7 +107,7 @@ export function useProject(projectId: string): ProjectData {
   /* ── tasks ── */
   const addTask = useCallback(async (sectionId: string | null, name: string, dueDate?: string): Promise<Task | null> => {
     const position = tasks.filter(t => t.section_id === sectionId).length;
-    const payload: Record<string, unknown> = { section_id: sectionId, project_id: projectId, name, position, status: "not_started" };
+    const payload: Record<string, unknown> = { section_id: sectionId, project_id: projectId, name, position, status: "not_started", priority: "high", task_type: "bug" };
     if (dueDate) payload.due_date = dueDate;
     const { data, error } = await supabase
       .from("BT_tasks")
@@ -206,23 +206,25 @@ export function useProject(projectId: string): ProjectData {
     ));
   }, []);
 
-  const removeAttachment = useCallback(async (attId: string, taskId: string) => {
-    const task = tasks.find(t => t.id === taskId);
-    const att  = task?.BT_attachments?.find(a => a.id === attId);
-    if (att?.url) {
-      fetch("/api/delete-file", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: att.url }),
-      }).catch(() => {});
-    }
+  const removeAttachment = useCallback(async (attId: string, taskId: string, fileUrl?: string) => {
+    // Optimistically remove from UI immediately
     setTasks(prev => prev.map(t =>
       t.id === taskId
         ? { ...t, BT_attachments: (t.BT_attachments ?? []).filter(a => a.id !== attId) }
         : t
     ));
-    await supabase.from("BT_attachments").delete().eq("id", attId);
-  }, [tasks]);
+    // Delete from DB and storage in parallel
+    await Promise.all([
+      supabase.from("BT_attachments").delete().eq("id", attId),
+      fileUrl
+        ? fetch("/api/delete-file", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: fileUrl }),
+          }).catch(err => console.error("Storage delete failed:", err))
+        : Promise.resolve(),
+    ]);
+  }, []);
 
   /* ── column configs ── */
   const updateColumnConfig = useCallback(async (key: ColumnKey, visible: boolean) => {

@@ -33,7 +33,7 @@ export default function TaskTypeBadge({ value, onChange, compact }: Props) {
           : { backgroundColor: "#F3F4F6", color: "#9EA3AA" }
         }
       >
-        {current ? current.label : "—"}
+        {current ? current.label : null}
         <ChevronDown size={10} />
       </button>
       {open && (
@@ -42,7 +42,7 @@ export default function TaskTypeBadge({ value, onChange, compact }: Props) {
             onClick={() => { onChange(null); setOpen(false); }}
             className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[#FAFBFC] text-left text-xs text-[#9EA3AA]"
           >
-            — None
+            None
           </button>
           {[...taskTypes].sort((a, b) => a.order - b.order).map(t => (
             <button

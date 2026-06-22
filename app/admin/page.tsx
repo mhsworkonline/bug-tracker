@@ -1,7 +1,8 @@
 "use client";
-
 import Link from "next/link";
 import { ChevronLeft, Settings } from "lucide-react";
+import PermissionsSection from "./PermissionsSection";
+import AssignmentRequestsSection from "./AssignmentRequestsSection";
 import StatusSection from "./StatusSection";
 import PrioritySection from "./PrioritySection";
 import TaskTypeSection from "./TaskTypeSection";
@@ -15,8 +16,9 @@ export default function AdminPage() {
         <Settings size={18} className="text-[#6B6F76]" />
         <h1 className="text-lg font-semibold text-[#151B26]">Admin Settings</h1>
       </div>
-
       <div className="max-w-3xl mx-auto px-8 py-8 flex flex-col gap-6">
+        <PermissionsSection />
+        <AssignmentRequestsSection />
         <StatusSection />
         <PrioritySection />
         <TaskTypeSection />

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import Link from "next/link";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import {
-  Star, ChevronDown, ChevronRight, Share2, Settings2, Filter, ArrowUpDown,
+  Star, ChevronDown, ChevronRight, ChevronUp, Share2, Settings2, Filter, ArrowUpDown,
   Search, Plus, User, Calendar, MoreHorizontal, Loader2, X,
 } from "lucide-react";
 import TaskDetailPanel from "@/components/TaskDetailPanel";
@@ -17,8 +18,14 @@ import TaskTypeBadge from "@/components/TaskTypeBadge";
 import { useProject } from "@/hooks/useProject";
 import type { ColumnKey } from "@/lib/data";
 import { exportToCSV, exportToExcel, exportToPDF, exportToJSON } from "@/lib/exportUtils";
+import { createSupabaseBrowser } from "@/lib/auth-browser";
+import { useAdminSettings } from "@/lib/adminSettingsContext";
+import { ADMIN_EMAIL } from "@/lib/constants";
+import { useRouter } from "next/navigation";
+import BoardView from "@/components/BoardView";
+import DashboardView from "@/components/DashboardView";
 
-const TABS = ["Overview","List","Board","Timeline","Calendar","Workflow","Dashboard","Messages","Files"];
+const TABS = ["List","Board","Dashboard"];
 
 function getWeekRange(offset = 0) {
   const now = new Date(), day = now.getDay();
@@ -48,7 +55,31 @@ function fmtDateTime(iso: string | null | undefined) {
   return `${fmtDate(iso)}, ${hh}:${mm} ${ampm}`;
 }
 
-export default function TaskList({ projectId }: { projectId: string }) {
+function SortHeader({ label, sk, sortKey, sortDir, onSort, className }: {
+  label: string; sk: import("@/components/SortDropdown").SortKey;
+  sortKey: import("@/components/SortDropdown").SortKey; sortDir: "asc"|"desc";
+  onSort: (k: import("@/components/SortDropdown").SortKey) => void; className?: string;
+}) {
+  const active = sortKey === sk;
+  return (
+    <button onClick={() => onSort(sk)} className={`flex items-center gap-1 text-xs font-medium hover:text-[#151B26] transition-colors ${active ? "text-[#4573D9]" : "text-[#6B6F76]"} ${className ?? ""}`}>
+      {label}
+      {active ? (sortDir === "asc" ? <ChevronUp size={11} /> : <ChevronDown size={11} />) : <ArrowUpDown size={10} className="opacity-30" />}
+    </button>
+  );
+}
+
+export default function TaskList({ projectId, userEmail }: { projectId: string; userEmail?: string }) {
+  const router = useRouter();
+  const handleLogout = async () => {
+    const sb = createSupabaseBrowser();
+    await sb.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  };
+  const userInitials = userEmail ? userEmail.slice(0, 2).toUpperCase() : "??";
+  const isAdmin = userEmail === ADMIN_EMAIL;
+
   const {
     project, sections, tasks, columnConfigs, loading, error,
     addSection, updateSection,
@@ -57,6 +88,9 @@ export default function TaskList({ projectId }: { projectId: string }) {
     updateColumnConfig,
   } = useProject(projectId);
 
+  const { lockPriorities } = useAdminSettings();
+
+  const [activeTab, setActiveTab]             = useState<"List"|"Board"|"Dashboard">("List");
   const [selectedTaskId, setSelectedTaskId]   = useState<string | null>(null);
   const [selectedIds, setSelectedIds]         = useState<Set<string>>(new Set());
   const [showCustomize, setShowCustomize]     = useState(false);
@@ -70,6 +104,17 @@ export default function TaskList({ projectId }: { projectId: string }) {
 
   const [activeFilters, setActiveFilters] = useState<ActiveFilters>(DEFAULT_FILTERS);
   const [sortKey, setSortKey]             = useState<SortKey>("none");
+  const [sortDir, setSortDir]             = useState<"asc"|"desc">("asc");
+
+  const handleColSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortKey(key); setSortDir("asc"); }
+  };
+
+  const [members, setMembers]             = useState<{ id: string; email: string; name?: string }[]>([]);
+  useEffect(() => {
+    fetch(`/api/projects/${projectId}/members`).then(r => r.json()).then(d => setMembers(d.members ?? []));
+  }, [projectId]);
 
   const [addingIn, setAddingIn]           = useState<string | null>(null);
   const [newTaskName, setNewTaskName]     = useState("");
@@ -128,27 +173,55 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     }
     if (activeFilters.incomplete && !activeFilters.completed)  r = r.filter(t => !t.completed);
     if (activeFilters.completed  && !activeFilters.incomplete) r = r.filter(t =>  t.completed);
-    if (activeFilters.justMyTasks)  r = r.filter(t => !t.assignee || t.assignee === "MH");
+    if (activeFilters.justMyTasks)  r = r.filter(t => t.assignee === userEmail);
     if (activeFilters.dueThisWeek) { const { start, end } = getWeekRange(0); r = r.filter(t => { if (!t.due_date) return false; const d = new Date(t.due_date); return d >= start && d <= end; }); }
     if (activeFilters.dueNextWeek) { const { start, end } = getWeekRange(1); r = r.filter(t => { if (!t.due_date) return false; const d = new Date(t.due_date); return d >= start && d <= end; }); }
+    if (activeFilters.statuses.length)   r = r.filter(t => activeFilters.statuses.includes(t.status ?? ""));
+    if (activeFilters.priorities.length) r = r.filter(t => activeFilters.priorities.includes(t.priority ?? ""));
+    if (activeFilters.taskTypes.length)  r = r.filter(t => activeFilters.taskTypes.includes(t.task_type ?? ""));
+    if (activeFilters.assignees.length)  r = r.filter(t => activeFilters.assignees.includes(t.assignee ?? ""));
     if (sortKey !== "none") r = [...r].sort((a, b) => {
       const rank: Record<string, number> = { show_stopper: 0, high: 1, medium: 2, low: 3 };
+      let v = 0;
       switch (sortKey) {
-        case "alphabetical":   return a.name.localeCompare(b.name);
-        case "dueDate":        return (a.due_date ?? "").localeCompare(b.due_date ?? "");
-        case "createdAt":      return a.created_at.localeCompare(b.created_at);
-        case "lastModifiedAt": return b.updated_at.localeCompare(a.updated_at);
-        case "completedAt":    return (b.completed_at ?? "").localeCompare(a.completed_at ?? "");
-        case "priority":       return (rank[a.priority ?? ""] ?? 4) - (rank[b.priority ?? ""] ?? 4);
-        default: return 0;
+        case "alphabetical":   v = a.name.localeCompare(b.name); break;
+        case "dueDate":        v = (a.due_date ?? "").localeCompare(b.due_date ?? ""); break;
+        case "assignee":       v = (a.assignee ?? "").localeCompare(b.assignee ?? ""); break;
+        case "createdAt":      v = a.created_at.localeCompare(b.created_at); break;
+        case "lastModifiedAt": v = a.updated_at.localeCompare(b.updated_at); break;
+        case "completedAt":    v = (a.completed_at ?? "").localeCompare(b.completed_at ?? ""); break;
+        case "priority":       v = (rank[a.priority ?? ""] ?? 4) - (rank[b.priority ?? ""] ?? 4); break;
+        default: v = 0;
       }
+      return sortDir === "asc" ? v : -v;
     });
     else r = [...r].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
     return r;
-  }, [tasks, activeFilters, sortKey, searchQuery]);
+  }, [tasks, activeFilters, sortKey, sortDir, searchQuery]);
+
+  const lastClickedRef = useRef<string | null>(null);
+
+  const orderedTaskIds = useMemo(() => {
+    const unsectioned = filteredTasks.filter(t => !t.section_id).map(t => t.id);
+    const sectioned = [...sections]
+      .sort((a, b) => a.position - b.position)
+      .flatMap(s => filteredTasks.filter(t => t.section_id === s.id).map(t => t.id));
+    return [...unsectioned, ...sectioned];
+  }, [filteredTasks, sections]);
 
   const toggleSelect = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (e.shiftKey && lastClickedRef.current) {
+      const startIdx = orderedTaskIds.indexOf(lastClickedRef.current);
+      const endIdx = orderedTaskIds.indexOf(id);
+      if (startIdx !== -1 && endIdx !== -1) {
+        const [from, to] = startIdx < endIdx ? [startIdx, endIdx] : [endIdx, startIdx];
+        const rangeIds = orderedTaskIds.slice(from, to + 1);
+        setSelectedIds(prev => { const next = new Set(prev); rangeIds.forEach(rid => next.add(rid)); return next; });
+        return;
+      }
+    }
+    lastClickedRef.current = id;
     setSelectedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
@@ -201,7 +274,10 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     if (type === "json")  exportToJSON(project, sections, tasks);
   };
 
-  const filterActive = Object.values(activeFilters).some(Boolean);
+  const filterActive = activeFilters.incomplete || activeFilters.completed || activeFilters.justMyTasks ||
+    activeFilters.dueThisWeek || activeFilters.dueNextWeek ||
+    activeFilters.statuses.length > 0 || activeFilters.priorities.length > 0 ||
+    activeFilters.taskTypes.length > 0 || activeFilters.assignees.length > 0;
 
   if (loading) return (
     <div className="flex items-center justify-center h-full gap-2 text-[#6B6F76] text-sm">
@@ -231,9 +307,13 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
           </button>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1">
-            <div className="w-7 h-7 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold">MH</div>
-            <button className="w-5 h-5 rounded-full border border-[#E8E8E9] bg-white flex items-center justify-center text-[#6B6F76] hover:bg-[#F5F5F5]"><Plus size={10} /></button>
+          <div className="flex items-center gap-2">
+            {isAdmin ? (
+              <Link href="/admin" title={`${userEmail} — Admin Panel`} className="w-7 h-7 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold hover:opacity-80">{userInitials}</Link>
+            ) : (
+              <div title={userEmail} className="w-7 h-7 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold cursor-default">{userInitials}</div>
+            )}
+            <button onClick={handleLogout} className="px-2 py-1 text-xs text-[#6B6F76] border border-[#E8E8E9] rounded hover:bg-[#F5F5F5]">Logout</button>
           </div>
           <button className="flex items-center gap-1.5 px-3 py-1.5 bg-[#4573D9] text-white text-sm rounded-md hover:bg-[#3F65C4]">
             <Share2 size={13} /> Share
@@ -247,7 +327,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
       {/* Tabs */}
       <div className="flex items-center px-6 bg-white border-b border-[#E8E8E9] flex-shrink-0">
         {TABS.map(tab => (
-          <button key={tab} className={`px-3 py-2.5 text-sm whitespace-nowrap transition-colors ${tab === "List" ? "font-semibold text-[#151B26] border-b-2 border-[#151B26]" : "text-[#6B6F76] hover:text-[#151B26]"}`}>{tab}</button>
+          <button key={tab} onClick={() => setActiveTab(tab as "List"|"Board"|"Dashboard")} className={`px-3 py-2.5 text-sm whitespace-nowrap transition-colors ${tab === activeTab ? "font-semibold text-[#151B26] border-b-2 border-[#151B26]" : "text-[#6B6F76] hover:text-[#151B26]"}`}>{tab}</button>
         ))}
         <button className="px-3 py-2.5 text-sm text-[#6B6F76] hover:text-[#151B26]">+</button>
       </div>
@@ -284,7 +364,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
             <button onClick={() => { setShowFilter(v => !v); setShowSort(false); }} className={`flex items-center gap-1 px-2.5 py-1.5 text-sm rounded transition-colors ${filterActive ? "text-[#4573D9] bg-[#EEF2FB]" : "text-[#6B6F76] hover:bg-[#F5F5F5]"}`}>
               <Filter size={14} /> Filter{filterActive ? " •" : ""}
             </button>
-            {showFilter && <FilterPanel filters={activeFilters} onChange={setActiveFilters} onClose={() => setShowFilter(false)} />}
+            {showFilter && <FilterPanel filters={activeFilters} onChange={setActiveFilters} onClose={() => setShowFilter(false)} members={members} />}
           </div>
           <div className="relative">
             <button onClick={() => { setShowSort(v => !v); setShowFilter(false); }} className={`flex items-center gap-1 px-2.5 py-1.5 text-sm rounded transition-colors ${sortKey !== "none" ? "text-[#4573D9] bg-[#EEF2FB]" : "text-[#6B6F76] hover:bg-[#F5F5F5]"}`}>
@@ -331,10 +411,22 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
         </div>
       )}
 
+      {activeTab === "Board" && (
+        <BoardView
+          tasks={tasks} sections={sections} projectId={projectId}
+          onOpenTask={id => setSelectedTaskId(id)}
+          addTask={addTask} updateTask={updateTask}
+        />
+      )}
+      {activeTab === "Dashboard" && (
+        <DashboardView tasks={tasks} sections={sections} />
+      )}
+
       {/* Table */}
-      <div
+      {activeTab === "List" && <div
         ref={scrollRef}
         className="flex-1 overflow-y-auto"
+        onMouseDown={e => { if (e.shiftKey) e.preventDefault(); }}
         onScroll={() => {
           if (scrollTimer.current) clearTimeout(scrollTimer.current);
           scrollTimer.current = setTimeout(() => {
@@ -345,15 +437,15 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
         {/* Column headers */}
         <div className="flex items-center px-6 py-2 border-b border-[#E8E8E9] sticky top-0 bg-[#FAFBFC] z-10">
           <div className="w-5 mr-2 flex-shrink-0" />
-          <div className="flex-1 text-xs font-medium text-[#6B6F76]">Name</div>
-          {visibleCols.includes("status")           && <div className="w-32 text-xs font-medium text-[#6B6F76]">Status</div>}
-          {visibleCols.includes("assignee")         && <div className="w-28 text-xs font-medium text-[#6B6F76]">Assignee</div>}
-          {visibleCols.includes("due_date")         && <div className="w-28 text-xs font-medium text-[#6B6F76]">Due date</div>}
-          {visibleCols.includes("priority")         && <div className="w-32 text-xs font-medium text-[#6B6F76]">Priority</div>}
-          {visibleCols.includes("task_type")        && <div className="w-32 text-xs font-medium text-[#6B6F76]">Task Type</div>}
-          {visibleCols.includes("created_on")       && <div className="w-40 text-xs font-medium text-[#6B6F76]">Created on</div>}
-          {visibleCols.includes("last_modified_on") && <div className="w-40 text-xs font-medium text-[#6B6F76]">Last modified</div>}
-          {visibleCols.includes("completed_on")     && <div className="w-40 text-xs font-medium text-[#6B6F76]">Completed on</div>}
+          <SortHeader label="Name"          sk="alphabetical"   sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="flex-1 border-r border-[#E8E8E9] pr-3" />
+          {visibleCols.includes("status")           && <div className="w-32 text-xs font-medium text-[#6B6F76] border-r border-[#E8E8E9] pl-3">Status</div>}
+          {visibleCols.includes("assignee")         && <SortHeader label="Assignee"    sk="assignee"      sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="w-28 border-r border-[#E8E8E9] pl-3" />}
+          {visibleCols.includes("due_date")         && <SortHeader label="Due date"    sk="dueDate"       sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="w-28 border-r border-[#E8E8E9] pl-3" />}
+          {visibleCols.includes("priority")         && <SortHeader label="Priority"    sk="priority"      sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="w-32 border-r border-[#E8E8E9] pl-3" />}
+          {visibleCols.includes("task_type")        && <div className="w-32 text-xs font-medium text-[#6B6F76] border-r border-[#E8E8E9] pl-3">Task Type</div>}
+          {visibleCols.includes("created_on")       && <SortHeader label="Created on"  sk="createdAt"     sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="w-40 border-r border-[#E8E8E9] pl-3" />}
+          {visibleCols.includes("last_modified_on") && <SortHeader label="Last modified" sk="lastModifiedAt" sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="w-40 border-r border-[#E8E8E9] pl-3" />}
+          {visibleCols.includes("completed_on")     && <SortHeader label="Completed on" sk="completedAt"  sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="w-40 border-r border-[#E8E8E9] pl-3" />}
           <div className="w-8 text-xs text-[#4573D9] cursor-pointer">+</div>
         </div>
 
@@ -371,12 +463,12 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
           return (
             <div
               key={task.id}
-              className={`flex items-center px-6 py-2 border-b border-[#E8E8E9] hover:bg-[#F5F5F5] group cursor-default ${selectedTaskId === task.id || isSelected ? "bg-[#F5F5F5]" : ""}`}
+              className={`flex items-center px-6 py-1 border-b border-[#E8E8E9] hover:bg-[#F5F5F5] group cursor-default ${selectedTaskId === task.id || isSelected ? "bg-[#F5F5F5]" : ""}`}
             >
               <div onClick={e => toggleSelect(task.id, e)} className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 mr-2 cursor-pointer transition-colors ${isSelected ? "bg-[#4573D9] border-[#4573D9]" : "border-[#B0B3B8] hover:border-[#4573D9] group-hover:border-[#4573D9]"}`}>
                 {isSelected && <svg width="8" height="8" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="2.5" fill="white"/></svg>}
               </div>
-              <div className="flex-1 text-sm min-w-0 py-1 flex items-center gap-1 cursor-pointer" onClick={() => { setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }}>
+              <div className="flex-1 text-sm min-w-0 py-0.5 flex items-center gap-1 cursor-pointer border-r border-[#E8E8E9] pr-2" onClick={() => { setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }}>
                 {editingTaskId === task.id ? (
                   <input autoFocus value={editingTaskName} onChange={e => setEditingTaskName(e.target.value)}
                     onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") { e.stopPropagation(); updateTask(task.id, { name: editingTaskName.trim() || task.name }); setEditingTaskId(null); }}}
@@ -389,9 +481,32 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                   </span>
                 )}
               </div>
-              {visibleCols.includes("status") && <div className="w-32" onClick={e => e.stopPropagation()}><StatusBadge compact value={task.status} onChange={v => updateTaskOrBulk(task.id, { status: v })} /></div>}
-              {visibleCols.includes("priority") && <div className="w-32" onClick={e => e.stopPropagation()}><PriorityBadge compact value={task.priority} onChange={v => updateTaskOrBulk(task.id, { priority: v })} /></div>}
-              {visibleCols.includes("task_type") && <div className="w-32" onClick={e => e.stopPropagation()}><TaskTypeBadge compact value={task.task_type} onChange={v => updateTaskOrBulk(task.id, { task_type: v })} /></div>}
+              {visibleCols.includes("status") && <div className="w-32 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}><StatusBadge compact value={task.status} onChange={v => updateTaskOrBulk(task.id, { status: v })} /></div>}
+              {visibleCols.includes("assignee") && (
+                <div className="w-28 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}>
+                  <select value={task.assignee ?? ""} onChange={e => updateTaskOrBulk(task.id, { assignee: e.target.value || null })}
+                    className="w-full text-xs text-[#151B26] bg-transparent border-0 outline-none cursor-pointer hover:bg-[#F5F5F5] rounded px-1 py-0.5">
+                    <option value="">Unassigned</option>
+                    {members.map(m => <option key={m.id} value={m.email}>{m.name ?? m.email}</option>)}
+                  </select>
+                </div>
+              )}
+              {visibleCols.includes("due_date") && (
+                <div className="w-28 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}>
+                  <div className="relative inline-flex items-center gap-1 cursor-pointer">
+                    {task.due_date && <span className="text-xs text-[#6B6F76]">{fmtDate(task.due_date)}</span>}
+                    <div className={`relative ${task.due_date ? "" : "opacity-0 group-hover:opacity-100"}`}>
+                      <Calendar size={13} className="text-[#6B6F76]" />
+                      <input type="date" className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={task.due_date ?? ""} onChange={e => updateTaskOrBulk(task.id, { due_date: e.target.value || null })} />
+                    </div>
+                  </div>
+                </div>
+              )}
+              {visibleCols.includes("priority") && <div className="w-32 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}><PriorityBadge compact value={task.priority ?? "high"} onChange={v => updateTaskOrBulk(task.id, { priority: v })} disabled={lockPriorities && !isAdmin} /></div>}
+              {visibleCols.includes("task_type") && <div className="w-32 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}><TaskTypeBadge compact value={task.task_type ?? "bug"} onChange={v => updateTaskOrBulk(task.id, { task_type: v })} /></div>}
+              {visibleCols.includes("created_on") && <div className="w-40 border-r border-[#E8E8E9] pl-3"><span className="text-xs text-[#6B6F76]">{fmtDateTime(task.created_at)}</span></div>}
+              {visibleCols.includes("last_modified_on") && <div className="w-40 border-r border-[#E8E8E9] pl-3"><span className="text-xs text-[#6B6F76]">{fmtDateTime(task.updated_at)}</span></div>}
+              {visibleCols.includes("completed_on") && <div className="w-40 border-r border-[#E8E8E9] pl-3"><span className="text-xs text-[#6B6F76]">{fmtDateTime(task.completed_at)}</span></div>}
               <div className="w-8" />
             </div>
           );
@@ -438,7 +553,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                 return (
                   <div
                     key={task.id}
-                    className={`flex items-center px-6 py-2 border-b border-[#E8E8E9] hover:bg-[#F5F5F5] group cursor-default ${selectedTaskId === task.id || isSelected ? "bg-[#F5F5F5]" : ""}`}
+                    className={`flex items-center px-6 py-1 border-b border-[#E8E8E9] hover:bg-[#F5F5F5] group cursor-default ${selectedTaskId === task.id || isSelected ? "bg-[#F5F5F5]" : ""}`}
                   >
                     {/* Radio / select circle */}
                     <div
@@ -496,20 +611,24 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                     </div>
 
                     {visibleCols.includes("status") && (
-                      <div className="w-32" onClick={e => e.stopPropagation()}>
+                      <div className="w-32 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}>
                         <StatusBadge compact value={task.status} onChange={v => updateTaskOrBulk(task.id, { status: v })} />
                       </div>
                     )}
                     {visibleCols.includes("assignee") && (
-                      <div className="w-28" onClick={e => e.stopPropagation()}>
-                        {task.assignee
-                          ? <div className="w-6 h-6 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold">{task.assignee.slice(0,2).toUpperCase()}</div>
-                          : <button className="w-5 h-5 rounded-full border-2 border-dashed border-[#D0D2D6] flex items-center justify-center text-[#6B6F76] hover:border-[#4573D9] opacity-0 group-hover:opacity-100"><User size={10} /></button>
-                        }
+                      <div className="w-28 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}>
+                        <select
+                          value={task.assignee ?? ""}
+                          onChange={e => updateTask(task.id, { assignee: e.target.value || null })}
+                          className="w-full text-xs text-[#151B26] bg-transparent border-0 outline-none cursor-pointer hover:bg-[#F5F5F5] rounded px-1 py-0.5"
+                        >
+                          <option value="">Unassigned</option>
+                          {members.map(m => <option key={m.id} value={m.email}>{m.name ?? m.email}</option>)}
+                        </select>
                       </div>
                     )}
                     {visibleCols.includes("due_date") && (
-                      <div className="w-28" onClick={e => e.stopPropagation()}>
+                      <div className="w-28 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}>
                         <div className="relative inline-flex items-center gap-1 cursor-pointer">
                           {task.due_date && <span className="text-xs text-[#6B6F76]">{fmtDate(task.due_date)}</span>}
                           <div className={`relative ${task.due_date ? "" : "opacity-0 group-hover:opacity-100"}`}>
@@ -525,23 +644,23 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                       </div>
                     )}
                     {visibleCols.includes("priority") && (
-                      <div className="w-32" onClick={e => e.stopPropagation()}>
-                        <PriorityBadge compact value={task.priority} onChange={v => updateTaskOrBulk(task.id, { priority: v })} />
+                      <div className="w-32 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}>
+                        <PriorityBadge compact value={task.priority ?? "high"} onChange={v => updateTaskOrBulk(task.id, { priority: v })} disabled={lockPriorities && !isAdmin} />
                       </div>
                     )}
                     {visibleCols.includes("task_type") && (
-                      <div className="w-32" onClick={e => e.stopPropagation()}>
-                        <TaskTypeBadge compact value={task.task_type} onChange={v => updateTaskOrBulk(task.id, { task_type: v })} />
+                      <div className="w-32 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}>
+                        <TaskTypeBadge compact value={task.task_type ?? "bug"} onChange={v => updateTaskOrBulk(task.id, { task_type: v })} />
                       </div>
                     )}
                     {visibleCols.includes("created_on") && (
-                      <div className="w-40"><span className="text-xs text-[#6B6F76]">{fmtDateTime(task.created_at)}</span></div>
+                      <div className="w-40 border-r border-[#E8E8E9] pl-3"><span className="text-xs text-[#6B6F76]">{fmtDateTime(task.created_at)}</span></div>
                     )}
                     {visibleCols.includes("last_modified_on") && (
-                      <div className="w-40"><span className="text-xs text-[#6B6F76]">{fmtDateTime(task.updated_at)}</span></div>
+                      <div className="w-40 border-r border-[#E8E8E9] pl-3"><span className="text-xs text-[#6B6F76]">{fmtDateTime(task.updated_at)}</span></div>
                     )}
                     {visibleCols.includes("completed_on") && (
-                      <div className="w-40"><span className="text-xs text-[#6B6F76]">{fmtDateTime(task.completed_at)}</span></div>
+                      <div className="w-40 border-r border-[#E8E8E9] pl-3"><span className="text-xs text-[#6B6F76]">{fmtDateTime(task.completed_at)}</span></div>
                     )}
                     <div className="w-8" />
                   </div>
@@ -634,7 +753,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
             <Plus size={14} /> Add section
           </button>
         </div>
-      </div>
+      </div>}
 
       {/* Panels */}
       {selectedTaskId && (() => {
@@ -656,6 +775,8 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
             onOpenTask={id => { setSelectedTaskId(id); }}
             addAttachment={addAttachment}
             removeAttachment={removeAttachment}
+            userEmail={userEmail}
+            isAdmin={isAdmin}
           />
         ) : null;
       })()}

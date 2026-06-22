@@ -36,10 +36,9 @@ async function deleteFromCloudinary(fileUrl: string, config: StorageConfig) {
   const cdn = resolveCloudinary(config.cloudinary);
   if (!cdn.cloud_name || !cdn.api_key || !cdn.api_secret) return;
 
-  // Extract resource_type and public_id from URL
-  // e.g. https://res.cloudinary.com/cloud/image/upload/v123/folder/file.jpg
-  const typeMatch  = fileUrl.match(/res\.cloudinary\.com\/[^/]+\/(image|video|raw)\/upload\//);
-  const idMatch    = fileUrl.match(/\/(?:image|video|raw)\/upload\/(?:v\d+\/)?(.+)\.[^.]+$/);
+  const clean = fileUrl.split("?")[0];
+  const typeMatch  = clean.match(/res\.cloudinary\.com\/[^/]+\/(image|video|raw)\/upload\//);
+  const idMatch    = clean.match(/\/(?:image|video|raw)\/upload\/(?:v\d+\/)?(.+)\.[^.]+$/);
   const resourceType = typeMatch?.[1] ?? "image";
   const publicId     = idMatch?.[1] ?? "";
   if (!publicId) return;
@@ -63,7 +62,8 @@ async function deleteFromR2(fileUrl: string, config: StorageConfig) {
 }
 
 async function deleteFromSupabase(fileUrl: string) {
-  const match = fileUrl.match(/\/storage\/v1\/object\/public\/bt-attachments\/(.+)$/);
+  const clean = fileUrl.split("?")[0];
+  const match = clean.match(/\/storage\/v1\/object\/public\/bt-attachments\/(.+)$/);
   const key = match?.[1];
   if (!key) return;
   const { createServerClient } = await import("@/lib/supabase-server");

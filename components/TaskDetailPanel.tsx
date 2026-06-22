@@ -11,6 +11,7 @@ import PriorityBadge from "@/components/PriorityBadge";
 import TaskTypeBadge from "@/components/TaskTypeBadge";
 import type { Task, Section, Attachment } from "@/lib/data";
 import type { ProjectData } from "@/hooks/useProject";
+import { useAdminSettings } from "@/lib/adminSettingsContext";
 
 interface Props {
   task: Task;
@@ -27,6 +28,8 @@ interface Props {
   onOpenTask: (taskId: string) => void;
   addAttachment: ProjectData["addAttachment"];
   removeAttachment: ProjectData["removeAttachment"];
+  userEmail?: string;
+  isAdmin?: boolean;
 }
 
 function fmtBytes(n: number) {
@@ -44,11 +47,14 @@ function fileIcon(type: string) {
 export default function TaskDetailPanel({
   task, projectId, projectName, projectColor, sections, onClose,
   updateTask, toggleTask, duplicateTask, deleteTask, addTask, onOpenTask,
-  addAttachment, removeAttachment,
+  addAttachment, removeAttachment, userEmail, isAdmin = false,
 }: Props) {
+  const { lockPriorities, requireAssigneeApproval } = useAdminSettings();
   const [editingTitle, setEditingTitle]   = useState(true);
   const [titleDraft, setTitleDraft]       = useState(task.name);
   const [uploading, setUploading]         = useState(false);
+  const [members, setMembers]             = useState<{ id: string; email: string }[]>([]);
+  const [assigneePending, setAssigneePending] = useState(false);
   const [fullscreen, setFullscreen]       = useState(false);
   const [showMenu, setShowMenu]           = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -56,6 +62,10 @@ export default function TaskDetailPanel({
   const menuRef     = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dueDateRef  = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetch(`/api/projects/${projectId}/members`).then(r => r.json()).then(d => setMembers(d.members ?? []));
+  }, [projectId]);
 
   useEffect(() => {
     if (!showMenu) return;
@@ -274,20 +284,41 @@ export default function TaskDetailPanel({
 
           <div className="flex items-center gap-4 mb-4">
             <span className="w-24 text-sm text-[#6B6F76] font-medium flex-shrink-0">Priority</span>
-            <PriorityBadge value={task.priority} onChange={v => updateTask(task.id, { priority: v })} />
+            <PriorityBadge
+              value={task.priority ?? "high"}
+              onChange={v => updateTask(task.id, { priority: v })}
+              disabled={lockPriorities && !isAdmin}
+            />
           </div>
 
           <div className="flex items-center gap-4 mb-4">
             <span className="w-24 text-sm text-[#6B6F76] font-medium flex-shrink-0">Task Type</span>
-            <TaskTypeBadge value={task.task_type} onChange={v => updateTask(task.id, { task_type: v })} />
+            <TaskTypeBadge value={task.task_type ?? "bug"} onChange={v => updateTask(task.id, { task_type: v })} />
           </div>
 
           <div className="flex items-center gap-4 mb-4">
             <span className="w-24 text-sm text-[#6B6F76] font-medium flex-shrink-0">Assignee</span>
-            <button className="flex items-center gap-2 text-sm text-[#6B6F76] hover:bg-[#FAFBFC] px-2 py-1 rounded">
-              <div className="w-5 h-5 rounded-full border-2 border-dashed border-[#6B6F76] flex items-center justify-center"><User size={10} /></div>
-              No assignee
-            </button>
+            <div className="flex items-center gap-2">
+            <select
+              value={task.assignee ?? ""}
+              onChange={async e => {
+                const email = e.target.value || null;
+                if (!isAdmin && requireAssigneeApproval && email) {
+                  setAssigneePending(true);
+                  await fetch("/api/assignment-requests", { method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ task_id: task.id, project_id: task.project_id, task_name: task.name, assignee_email: email }) });
+                  setAssigneePending(false);
+                } else {
+                  updateTask(task.id, { assignee: email });
+                }
+              }}
+              className="text-sm text-[#151B26] border-0 outline-none bg-transparent cursor-pointer hover:bg-[#FAFBFC] px-2 py-1 rounded"
+            >
+              <option value="">No assignee</option>
+              {members.map(m => <option key={m.id} value={m.email}>{m.email}</option>)}
+            </select>
+            {assigneePending && <span className="text-xs text-amber-500 italic">Pending admin approval…</span>}
+            </div>
           </div>
 
           <div className="flex items-center gap-4 mb-6">
@@ -365,7 +396,7 @@ export default function TaskDetailPanel({
                       <a href={att.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-[#151B26] hover:underline truncate block">{att.name}</a>
                       <p className="text-xs text-[#6B6F76]">{fmtBytes(att.size)}</p>
                     </div>
-                    <button onClick={() => removeAttachment(att.id, task.id)} className="p-1 text-[#6B6F76] hover:text-red-500 rounded opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14} /></button>
+                    <button onClick={() => removeAttachment(att.id, task.id, att.url)} className="p-1 text-[#6B6F76] hover:text-red-500 rounded opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14} /></button>
                   </div>
                 ))}
                 {uploading && (
