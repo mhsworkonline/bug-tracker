@@ -7,6 +7,7 @@ function taskRows(sections: Section[], tasks: Task[]) {
     const attachments = t.BT_attachments ?? [];
     return {
       "S.No.":             i + 1,
+      "Task ID":           t.id,
       "Section":           section?.name ?? "",
       "Task Name":         t.name,
       "Status":            (STATUS_LABELS as Record<string, string>)[t.status] ?? t.status,
@@ -16,8 +17,8 @@ function taskRows(sections: Section[], tasks: Task[]) {
       "Completed":         t.completed ? "Yes" : "No",
       "Completed On":      t.completed_at ? new Date(t.completed_at).toLocaleDateString() : "",
       "Description":       t.description ?? "",
-      "Attachment Names":  attachments.map(a => a.name).join("; "),
-      "Attachment URLs":   attachments.map(a => a.url).join("; "),
+      "Task Type":         t.task_type ?? "",
+      "Attachment URLs":   attachments.map(a => a.url).join("\n\n"),
       "Created At":        new Date(t.created_at).toLocaleDateString(),
       "Last Modified":     new Date(t.updated_at).toLocaleDateString(),
     };
@@ -60,28 +61,46 @@ export async function exportToExcel(project: Project, sections: Section[], tasks
     };
   });
 
-  // Data rows: wrap text + hyperlink on URL column
+  // Data rows: wrap text; single-attachment URL cells get a hyperlink
   const urlColIdx = headers.indexOf("Attachment URLs");
   rows.forEach((row, rowIdx) => {
-    headers.forEach((h, c) => {
+    headers.forEach((__, c) => {
       const ref = XLSX.utils.encode_cell({ r: rowIdx + 1, c });
       if (!ws[ref]) return;
-      const isUrl = c === urlColIdx && ws[ref].v;
+      const val = String(ws[ref].v ?? "");
+      const isSingleUrl = c === urlColIdx && val && !val.includes("\n");
       ws[ref].s = {
         alignment: { wrapText: true, vertical: "top" },
-        ...(isUrl ? { font: { color: { rgb: "4573D9" }, underline: true } } : {}),
+        ...(isSingleUrl ? { font: { color: { rgb: "4573D9" }, underline: true } } : {}),
       };
-      if (isUrl) ws[ref].l = { Target: String(ws[ref].v).split("; ")[0] };
+      if (isSingleUrl) ws[ref].l = { Target: val };
     });
   });
 
-  // Freeze top row + column widths
-  ws["!freeze"] = { xSplit: 0, ySplit: 1 };
-  ws["!cols"]   = headers.map(h => ({ wch: Math.min(45, Math.max(14, h.length + 4)) }));
+  ws["!cols"] = headers.map(h => ({ wch: Math.min(45, Math.max(14, h.length + 4)) }));
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Tasks");
-  XLSX.writeFile(wb, `${project.name}-tasks.xlsx`);
+
+  // xlsx-js-style doesn't write freeze panes — post-process the zip to inject the pane XML
+  const { unzipSync, zipSync, strFromU8, strToU8 } = await import("fflate");
+  const raw = new Uint8Array(XLSX.write(wb, { type: "array", bookType: "xlsx" }) as number[]);
+  const files = unzipSync(raw);
+  const sheetKey = "xl/worksheets/sheet1.xml";
+  if (files[sheetKey]) {
+    const pane = '<pane xSplit="0" ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft"/>';
+    let xml = strFromU8(files[sheetKey]);
+    // inject pane into self-closing <sheetView ... /> or empty <sheetView ...></sheetView>
+    xml = xml
+      .replace(/(<sheetView\b[^>]*)\/>/,  `$1>${pane}</sheetView>`)
+      .replace(/(<sheetView\b[^>]*>)<\/sheetView>/, `$1${pane}</sheetView>`);
+    files[sheetKey] = strToU8(xml);
+  }
+  const blob = new Blob([zipSync(files)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `${project.name}-tasks.xlsx`; a.click();
+  URL.revokeObjectURL(url);
 }
 
 export async function exportToPDF(project: Project, sections: Section[], tasks: Task[]) {

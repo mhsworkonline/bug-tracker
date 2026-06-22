@@ -49,6 +49,20 @@ export const DEFAULT_PRIORITIES: PriorityOption[] = [
   { key: "low",          label: "Low",          bg: "#F3F4F6", text: "#6B6F76", dot: "#9CA3AF", order: 3 },
 ];
 
+export interface TaskTypeOption {
+  key: string;
+  label: string;
+  bg: string;
+  text: string;
+  order: number;
+}
+
+export const DEFAULT_TASK_TYPES: TaskTypeOption[] = [
+  { key: "bug",        label: "Bug",        bg: "#FEE2E2", text: "#B91C1C", order: 0 },
+  { key: "suggestion", label: "Suggestion", bg: "#D1FAE5", text: "#065F46", order: 1 },
+  { key: "ui_fix",     label: "UI Fix",     bg: "#EDE9FE", text: "#6D28D9", order: 2 },
+];
+
 export const DEFAULT_STORAGE: StorageConfig = {
   provider: "supabase",
   cloudflare: { account_id: "", access_key_id: "", secret_access_key: "", bucket: "", public_url: "" },

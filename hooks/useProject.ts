@@ -19,7 +19,7 @@ export interface ProjectData {
   addSection: (name?: string) => Promise<Section | null>;
   updateSection: (id: string, name: string) => Promise<void>;
   deleteSection: (id: string) => Promise<void>;
-  addTask: (sectionId: string, name: string, dueDate?: string) => Promise<Task | null>;
+  addTask: (sectionId: string | null, name: string, dueDate?: string) => Promise<Task | null>;
   duplicateTask: (taskId: string) => Promise<Task | null>;
   updateTask: (taskId: string, updates: Partial<Omit<Task, "id" | "project_id" | "created_at">>) => Promise<void>;
   toggleTask: (taskId: string) => Promise<void>;
@@ -56,17 +56,19 @@ export function useProject(projectId: string): ProjectData {
       setSections(sRes.data ?? []);
       setTasks(tRes.data ?? []);
 
-      // If no column configs exist yet, seed defaults
+      // Seed missing columns (handles first-time and new columns added later)
       let configs = cRes.data ?? [];
-      if (configs.length === 0) {
-        const seeds = COLS.map((c, i) => ({
+      const existingKeys = new Set(configs.map(c => c.column_key));
+      const missing = COLS.filter(c => !existingKeys.has(c.key));
+      if (missing.length > 0) {
+        const seeds = missing.map((c, i) => ({
           project_id: projectId,
           column_key: c.key,
           visible: c.defaultVisible,
-          position: i,
+          position: configs.length + i,
         }));
         const { data } = await supabase.from("BT_column_configs").insert(seeds).select();
-        configs = data ?? [];
+        configs = [...configs, ...(data ?? [])];
       }
       setColumnConfigs(configs);
     } catch (e: unknown) {
@@ -103,7 +105,7 @@ export function useProject(projectId: string): ProjectData {
   }, []);
 
   /* ── tasks ── */
-  const addTask = useCallback(async (sectionId: string, name: string, dueDate?: string): Promise<Task | null> => {
+  const addTask = useCallback(async (sectionId: string | null, name: string, dueDate?: string): Promise<Task | null> => {
     const position = tasks.filter(t => t.section_id === sectionId).length;
     const payload: Record<string, unknown> = { section_id: sectionId, project_id: projectId, name, position, status: "not_started" };
     if (dueDate) payload.due_date = dueDate;
@@ -169,9 +171,22 @@ export function useProject(projectId: string): ProjectData {
   }, [tasks]);
 
   const deleteTask = useCallback(async (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    // Fire-and-forget storage cleanup — don't block DB delete on failures
+    if (task?.BT_attachments?.length) {
+      Promise.allSettled(
+        task.BT_attachments.map(att =>
+          fetch("/api/delete-file", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: att.url }),
+          })
+        )
+      );
+    }
     setTasks(prev => prev.filter(t => t.id !== taskId));
     await supabase.from("BT_tasks").delete().eq("id", taskId);
-  }, []);
+  }, [tasks]);
 
   /* ── attachments ── */
   const addAttachment = useCallback(async (
@@ -192,13 +207,22 @@ export function useProject(projectId: string): ProjectData {
   }, []);
 
   const removeAttachment = useCallback(async (attId: string, taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    const att  = task?.BT_attachments?.find(a => a.id === attId);
+    if (att?.url) {
+      fetch("/api/delete-file", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: att.url }),
+      }).catch(() => {});
+    }
     setTasks(prev => prev.map(t =>
       t.id === taskId
         ? { ...t, BT_attachments: (t.BT_attachments ?? []).filter(a => a.id !== attId) }
         : t
     ));
     await supabase.from("BT_attachments").delete().eq("id", attId);
-  }, []);
+  }, [tasks]);
 
   /* ── column configs ── */
   const updateColumnConfig = useCallback(async (key: ColumnKey, visible: boolean) => {

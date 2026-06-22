@@ -13,6 +13,7 @@ import SortDropdown, { type SortKey } from "@/components/SortDropdown";
 import ShowHideColumns from "@/components/ShowHideColumns";
 import StatusBadge from "@/components/StatusBadge";
 import PriorityBadge from "@/components/PriorityBadge";
+import TaskTypeBadge from "@/components/TaskTypeBadge";
 import { useProject } from "@/hooks/useProject";
 import type { ColumnKey } from "@/lib/data";
 import { exportToCSV, exportToExcel, exportToPDF, exportToJSON } from "@/lib/exportUtils";
@@ -73,13 +74,37 @@ export default function TaskList({ projectId }: { projectId: string }) {
   const [addingIn, setAddingIn]           = useState<string | null>(null);
   const [newTaskName, setNewTaskName]     = useState("");
   const [newTaskDueDate, setNewTaskDueDate] = useState("");
-  const dateInputRef  = useRef<HTMLInputElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-
-  const [renamingSection, setRenamingSection]   = useState<string | null>(null);
+  const dateInputRef     = useRef<HTMLInputElement>(null);
+  const searchInputRef   = useRef<HTMLInputElement>(null);
+const [renamingSection, setRenamingSection]   = useState<string | null>(null);
   const [sectionNameDraft, setSectionNameDraft] = useState("");
+  const scrollRef       = useRef<HTMLDivElement>(null);
+  const scrollTimer     = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem(`bt_collapsed_${projectId}`);
+      return saved ? new Set(JSON.parse(saved) as string[]) : new Set();
+    } catch { return new Set(); }
+  });
+
+  const toggleCollapse = (id: string) => setCollapsedSections(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    try { localStorage.setItem(`bt_collapsed_${projectId}`, JSON.stringify([...next])); } catch {}
+    return next;
+  });
   const [editingTaskId, setEditingTaskId]       = useState<string | null>(null);
   const [editingTaskName, setEditingTaskName]   = useState("");
+
+  // Restore scroll position after data finishes loading
+  useEffect(() => {
+    if (loading) return;
+    const saved = localStorage.getItem(`bt_scroll_${projectId}`);
+    if (!saved || !scrollRef.current) return;
+    const top = Number(saved);
+    requestAnimationFrame(() => { if (scrollRef.current) scrollRef.current.scrollTop = top; });
+  }, [loading, projectId]);
 
   // ESC closes task detail panel
   useEffect(() => {
@@ -118,6 +143,7 @@ export default function TaskList({ projectId }: { projectId: string }) {
         default: return 0;
       }
     });
+    else r = [...r].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
     return r;
   }, [tasks, activeFilters, sortKey, searchQuery]);
 
@@ -148,14 +174,12 @@ export default function TaskList({ projectId }: { projectId: string }) {
 
   const commitNewTask = async (sectionId: string) => {
     const name = newTaskName.trim();
-    if (name) await addTask(sectionId, name, newTaskDueDate || undefined);
+    await addTask(sectionId, name, newTaskDueDate || undefined);
     setNewTaskName(""); setNewTaskDueDate(""); setAddingIn(null);
   };
 
   const commitAndOpen = async (sectionId: string) => {
-    const name = newTaskName.trim();
-    if (!name) { setAddingIn(null); return; }
-    const task = await addTask(sectionId, name, newTaskDueDate || undefined);
+    const task = await addTask(sectionId, newTaskName.trim(), newTaskDueDate || undefined);
     setNewTaskName(""); setNewTaskDueDate(""); setAddingIn(null);
     if (task) { setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }
   };
@@ -230,8 +254,14 @@ export default function TaskList({ projectId }: { projectId: string }) {
 
       {/* Toolbar */}
       <div className="flex items-center justify-between px-6 py-2 bg-white border-b border-[#E8E8E9] flex-shrink-0 gap-3">
-        <button onClick={() => { setAddingIn(sections[0]?.id ?? null); setSelectedTaskId(null); }} className="flex items-center gap-1 px-3 py-1.5 bg-[#4573D9] text-white text-sm rounded-md hover:bg-[#3F65C4] flex-shrink-0">
-          <Plus size={14} /> Add task <ChevronDown size={13} />
+        <button
+          onClick={async () => {
+            const task = await addTask(null, "");
+            if (task) { setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }
+          }}
+          className="flex items-center gap-1 px-3 py-1.5 bg-[#4573D9] text-white text-sm rounded-md hover:bg-[#3F65C4] flex-shrink-0"
+        >
+          <Plus size={14} /> Add task
         </button>
         <div className="flex items-center gap-0.5 flex-1 justify-end">
           {showSearch && (
@@ -302,7 +332,16 @@ export default function TaskList({ projectId }: { projectId: string }) {
       )}
 
       {/* Table */}
-      <div className="flex-1 overflow-y-auto">
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto"
+        onScroll={() => {
+          if (scrollTimer.current) clearTimeout(scrollTimer.current);
+          scrollTimer.current = setTimeout(() => {
+            try { localStorage.setItem(`bt_scroll_${projectId}`, String(scrollRef.current?.scrollTop ?? 0)); } catch {}
+          }, 150);
+        }}
+      >
         {/* Column headers */}
         <div className="flex items-center px-6 py-2 border-b border-[#E8E8E9] sticky top-0 bg-[#FAFBFC] z-10">
           <div className="w-5 mr-2 flex-shrink-0" />
@@ -311,6 +350,7 @@ export default function TaskList({ projectId }: { projectId: string }) {
           {visibleCols.includes("assignee")         && <div className="w-28 text-xs font-medium text-[#6B6F76]">Assignee</div>}
           {visibleCols.includes("due_date")         && <div className="w-28 text-xs font-medium text-[#6B6F76]">Due date</div>}
           {visibleCols.includes("priority")         && <div className="w-32 text-xs font-medium text-[#6B6F76]">Priority</div>}
+          {visibleCols.includes("task_type")        && <div className="w-32 text-xs font-medium text-[#6B6F76]">Task Type</div>}
           {visibleCols.includes("created_on")       && <div className="w-40 text-xs font-medium text-[#6B6F76]">Created on</div>}
           {visibleCols.includes("last_modified_on") && <div className="w-40 text-xs font-medium text-[#6B6F76]">Last modified</div>}
           {visibleCols.includes("completed_on")     && <div className="w-40 text-xs font-medium text-[#6B6F76]">Completed on</div>}
@@ -325,14 +365,49 @@ export default function TaskList({ projectId }: { projectId: string }) {
           </div>
         )}
 
+        {/* Unsectioned tasks */}
+        {filteredTasks.filter(t => !t.section_id).map(task => {
+          const isSelected = selectedIds.has(task.id);
+          return (
+            <div
+              key={task.id}
+              className={`flex items-center px-6 py-2 border-b border-[#E8E8E9] hover:bg-[#F5F5F5] group cursor-default ${selectedTaskId === task.id || isSelected ? "bg-[#F5F5F5]" : ""}`}
+            >
+              <div onClick={e => toggleSelect(task.id, e)} className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 mr-2 cursor-pointer transition-colors ${isSelected ? "bg-[#4573D9] border-[#4573D9]" : "border-[#B0B3B8] hover:border-[#4573D9] group-hover:border-[#4573D9]"}`}>
+                {isSelected && <svg width="8" height="8" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="2.5" fill="white"/></svg>}
+              </div>
+              <div className="flex-1 text-sm min-w-0 py-1 flex items-center gap-1 cursor-pointer" onClick={() => { setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }}>
+                {editingTaskId === task.id ? (
+                  <input autoFocus value={editingTaskName} onChange={e => setEditingTaskName(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") { e.stopPropagation(); updateTask(task.id, { name: editingTaskName.trim() || task.name }); setEditingTaskId(null); }}}
+                    onBlur={() => { updateTask(task.id, { name: editingTaskName.trim() || task.name }); setEditingTaskId(null); }}
+                    className="flex-1 outline-none bg-transparent border-b border-[#4573D9] text-[#151B26]" onClick={e => e.stopPropagation()} />
+                ) : (
+                  <span className={`min-w-0 truncate cursor-text ${task.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`}
+                    onClick={e => { e.stopPropagation(); setEditingTaskId(task.id); setEditingTaskName(task.name); }}>
+                    {task.name}
+                  </span>
+                )}
+              </div>
+              {visibleCols.includes("status") && <div className="w-32" onClick={e => e.stopPropagation()}><StatusBadge compact value={task.status} onChange={v => updateTaskOrBulk(task.id, { status: v })} /></div>}
+              {visibleCols.includes("priority") && <div className="w-32" onClick={e => e.stopPropagation()}><PriorityBadge compact value={task.priority} onChange={v => updateTaskOrBulk(task.id, { priority: v })} /></div>}
+              {visibleCols.includes("task_type") && <div className="w-32" onClick={e => e.stopPropagation()}><TaskTypeBadge compact value={task.task_type} onChange={v => updateTaskOrBulk(task.id, { task_type: v })} /></div>}
+              <div className="w-8" />
+            </div>
+          );
+        })}
+
         {/* Sections + tasks */}
         {sections.map(section => {
           const sectionTasks = filteredTasks.filter(t => t.section_id === section.id);
+          const collapsed = collapsedSections.has(section.id);
           return (
             <div key={section.id}>
               {/* Section header */}
               <div className="flex items-center px-6 py-2 border-b border-[#E8E8E9] group">
-                <ChevronDown size={14} className="text-[#6B6F76] mr-1 flex-shrink-0" />
+                <button onClick={() => toggleCollapse(section.id)} className="mr-1 text-[#6B6F76] hover:text-[#151B26] flex-shrink-0">
+                  <ChevronDown size={14} className={`transition-transform ${collapsed ? "-rotate-90" : ""}`} />
+                </button>
                 {renamingSection === section.id ? (
                   <input
                     autoFocus
@@ -358,12 +433,11 @@ export default function TaskList({ projectId }: { projectId: string }) {
               </div>
 
               {/* Task rows */}
-              {sectionTasks.map(task => {
+              {!collapsed && sectionTasks.map(task => {
                 const isSelected = selectedIds.has(task.id);
                 return (
                   <div
                     key={task.id}
-                    onDoubleClick={() => { setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }}
                     className={`flex items-center px-6 py-2 border-b border-[#E8E8E9] hover:bg-[#F5F5F5] group cursor-default ${selectedTaskId === task.id || isSelected ? "bg-[#F5F5F5]" : ""}`}
                   >
                     {/* Radio / select circle */}
@@ -389,8 +463,11 @@ export default function TaskList({ projectId }: { projectId: string }) {
                       )}
                     </div>
 
-                    {/* Task name — click to edit inline; ChevronRight opens detail */}
-                    <div className="flex-1 text-sm min-w-0 py-1 flex items-center gap-1 min-w-0">
+                    {/* Task name column: click text = inline edit, click empty space = open detail */}
+                    <div
+                      className="flex-1 text-sm min-w-0 py-1 flex items-center gap-1 cursor-pointer"
+                      onClick={() => { setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }}
+                    >
                       {editingTaskId === task.id ? (
                         <input
                           autoFocus
@@ -406,21 +483,14 @@ export default function TaskList({ projectId }: { projectId: string }) {
                       ) : (
                         <>
                           <span
-                            className={`truncate cursor-text ${task.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`}
+                            className={`min-w-0 truncate cursor-text ${task.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`}
                             onClick={e => { e.stopPropagation(); setEditingTaskId(task.id); setEditingTaskName(task.name); }}
                           >
                             {task.name}
                           </span>
                           {(task.BT_attachments?.length ?? 0) > 0 && (
-                            <span className="text-xs text-[#6B6F76] flex-shrink-0">📎 {task.BT_attachments!.length}</span>
+                            <span className="text-xs text-[#6B6F76] shrink-0" onClick={e => e.stopPropagation()}>📎 {task.BT_attachments!.length}</span>
                           )}
-                          <button
-                            onClick={e => { e.stopPropagation(); setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }}
-                            className="opacity-0 group-hover:opacity-100 flex-shrink-0 p-0.5 text-[#6B6F76] hover:text-[#4573D9] transition-opacity"
-                            title="Open detail"
-                          >
-                            <ChevronRight size={13} />
-                          </button>
                         </>
                       )}
                     </div>
@@ -459,6 +529,11 @@ export default function TaskList({ projectId }: { projectId: string }) {
                         <PriorityBadge compact value={task.priority} onChange={v => updateTaskOrBulk(task.id, { priority: v })} />
                       </div>
                     )}
+                    {visibleCols.includes("task_type") && (
+                      <div className="w-32" onClick={e => e.stopPropagation()}>
+                        <TaskTypeBadge compact value={task.task_type} onChange={v => updateTaskOrBulk(task.id, { task_type: v })} />
+                      </div>
+                    )}
                     {visibleCols.includes("created_on") && (
                       <div className="w-40"><span className="text-xs text-[#6B6F76]">{fmtDateTime(task.created_at)}</span></div>
                     )}
@@ -474,22 +549,31 @@ export default function TaskList({ projectId }: { projectId: string }) {
               })}
 
               {/* Inline add task */}
-              {addingIn === section.id ? (
+              {!collapsed && addingIn === section.id ? (
                 <div className="flex items-center px-6 py-2 border-b border-[#E8E8E9] bg-white gap-2">
                   <div className="w-4 h-4 rounded-full border border-[#B0B3B8] flex-shrink-0" />
-                  <input
-                    autoFocus
-                    value={newTaskName}
-                    onChange={e => setNewTaskName(e.target.value)}
-                    onPaste={e => handlePaste(e, section.id)}
-                    onKeyDown={e => {
-                      if (e.key === "Enter") commitNewTask(section.id);
-                      if (e.key === "Escape") { setNewTaskName(""); setNewTaskDueDate(""); setAddingIn(null); }
-                    }}
-                    onBlur={() => commitNewTask(section.id)}
-                    placeholder="Write a task name"
-                    className="flex-1 text-sm outline-none text-[#151B26] placeholder-[#6B6F76]"
-                  />
+                  <div
+                    className="flex-1 flex items-center cursor-pointer"
+                    onMouseDown={e => e.preventDefault()}
+                    onClick={async () => { await commitAndOpen(section.id); }}
+                  >
+                    <input
+                      autoFocus
+                      value={newTaskName}
+                      onChange={e => setNewTaskName(e.target.value)}
+                      onPaste={e => handlePaste(e, section.id)}
+                      onKeyDown={e => {
+                        if (e.key === "Enter") commitNewTask(section.id);
+                        if (e.key === "Escape") { setNewTaskName(""); setNewTaskDueDate(""); setAddingIn(null); }
+                      }}
+                      onBlur={() => commitNewTask(section.id)}
+                      placeholder="Write task here"
+                      className="text-sm outline-none text-[#151B26] placeholder-[#6B6F76] shrink-0 bg-transparent"
+                      style={{ width: newTaskName ? `${newTaskName.length + 1}ch` : "10ch" }}
+                      onClick={e => e.stopPropagation()}
+                    />
+                    <div className="flex-1 h-full min-h-[24px]" />
+                  </div>
                   <div className="flex items-center gap-0.5 flex-shrink-0">
                     <button
                       type="button"
@@ -528,7 +612,7 @@ export default function TaskList({ projectId }: { projectId: string }) {
                     />
                   </div>
                 </div>
-              ) : (
+              ) : !collapsed ? (
                 <div
                   className="flex items-center px-6 py-2 border-b border-[#E8E8E9] cursor-pointer hover:bg-[#F5F5F5] group/add"
                   onClick={() => setAddingIn(section.id)}
@@ -536,7 +620,7 @@ export default function TaskList({ projectId }: { projectId: string }) {
                   <div className="w-4 h-4 rounded-full border border-[#E8E8E9] mr-2 flex-shrink-0 group-hover/add:border-[#4573D9]" />
                   <span className="text-sm text-[#9EA3AA] group-hover/add:text-[#4573D9]">Add task...</span>
                 </div>
-              )}
+              ) : null}
             </div>
           );
         })}
@@ -557,6 +641,7 @@ export default function TaskList({ projectId }: { projectId: string }) {
         const t = tasks.find(x => x.id === selectedTaskId);
         return t ? (
           <TaskDetailPanel
+            key={selectedTaskId}
             task={t}
             projectId={projectId}
             projectName={project.name}
@@ -567,6 +652,8 @@ export default function TaskList({ projectId }: { projectId: string }) {
             toggleTask={toggleTask}
             duplicateTask={duplicateTask}
             deleteTask={deleteTask}
+            addTask={addTask}
+            onOpenTask={id => { setSelectedTaskId(id); }}
             addAttachment={addAttachment}
             removeAttachment={removeAttachment}
           />

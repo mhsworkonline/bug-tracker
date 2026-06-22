@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ChevronLeft, Settings } from "lucide-react";
 import StatusSection from "./StatusSection";
 import PrioritySection from "./PrioritySection";
+import TaskTypeSection from "./TaskTypeSection";
 import StorageSection from "./StorageSection";
 
 export default function AdminPage() {
@@ -18,6 +19,7 @@ export default function AdminPage() {
       <div className="max-w-3xl mx-auto px-8 py-8 flex flex-col gap-6">
         <StatusSection />
         <PrioritySection />
+        <TaskTypeSection />
         <StorageSection />
       </div>
     </div>

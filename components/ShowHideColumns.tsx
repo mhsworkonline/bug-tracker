@@ -9,6 +9,7 @@ const COLUMN_ICONS: Record<ColumnKey, React.ElementType> = {
   assignee:        User,
   due_date:        Calendar,
   priority:        Tag,
+  task_type:       Tag,
   collaborators:   Users,
   created_by:      User,
   created_on:      Clock,

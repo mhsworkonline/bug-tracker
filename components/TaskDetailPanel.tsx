@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
 import PriorityBadge from "@/components/PriorityBadge";
+import TaskTypeBadge from "@/components/TaskTypeBadge";
 import type { Task, Section, Attachment } from "@/lib/data";
 import type { ProjectData } from "@/hooks/useProject";
 
@@ -22,6 +23,8 @@ interface Props {
   toggleTask: ProjectData["toggleTask"];
   duplicateTask: ProjectData["duplicateTask"];
   deleteTask: ProjectData["deleteTask"];
+  addTask: ProjectData["addTask"];
+  onOpenTask: (taskId: string) => void;
   addAttachment: ProjectData["addAttachment"];
   removeAttachment: ProjectData["removeAttachment"];
 }
@@ -40,16 +43,19 @@ function fileIcon(type: string) {
 
 export default function TaskDetailPanel({
   task, projectId, projectName, projectColor, sections, onClose,
-  updateTask, toggleTask, duplicateTask, deleteTask, addAttachment, removeAttachment,
+  updateTask, toggleTask, duplicateTask, deleteTask, addTask, onOpenTask,
+  addAttachment, removeAttachment,
 }: Props) {
-  const [editingTitle, setEditingTitle]   = useState(false);
-  const [titleDraft, setTitleDraft]       = useState("");
+  const [editingTitle, setEditingTitle]   = useState(true);
+  const [titleDraft, setTitleDraft]       = useState(task.name);
   const [uploading, setUploading]         = useState(false);
   const [fullscreen, setFullscreen]       = useState(false);
   const [showMenu, setShowMenu]           = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const menuRef    = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging]       = useState(false);
+  const menuRef     = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dueDateRef  = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!showMenu) return;
@@ -57,6 +63,32 @@ export default function TaskDetailPanel({
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, [showMenu]);
+
+  useEffect(() => {
+    const handler = async (e: ClipboardEvent) => {
+      const items = Array.from(e.clipboardData?.items ?? []).filter(i => i.type.startsWith("image/"));
+      if (!items.length) return;
+      e.preventDefault();
+      setUploading(true);
+      try {
+        for (const item of items) {
+          const blob = item.getAsFile();
+          if (!blob) continue;
+          const filename = `screenshot-${Date.now()}.png`;
+          const file = new File([blob], filename, { type: blob.type });
+          const fd = new FormData();
+          fd.append("file", file);
+          const res = await fetch("/api/upload", { method: "POST", body: fd });
+          if (!res.ok) throw new Error(await res.text());
+          const data = await res.json();
+          await addAttachment(task.id, { name: filename, url: data.url, file_type: file.type, size: file.size });
+        }
+      } catch (err) { console.error("Screenshot upload failed:", err); }
+      finally { setUploading(false); }
+    };
+    window.addEventListener("paste", handler);
+    return () => window.removeEventListener("paste", handler);
+  }, [task.id, addAttachment]);
 
   const saveTitle = () => {
     const v = titleDraft.trim();
@@ -79,6 +111,25 @@ export default function TaskDetailPanel({
       }
     } catch (err) { console.error("Upload failed:", err); }
     finally { setUploading(false); if (fileInputRef.current) fileInputRef.current.value = ""; }
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (!files.length) return;
+    setUploading(true);
+    try {
+      for (const file of files) {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch("/api/upload", { method: "POST", body: fd });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        await addAttachment(task.id, { name: data.name, url: data.url, file_type: file.type, size: file.size });
+      }
+    } catch (err) { console.error("Drop upload failed:", err); }
+    finally { setUploading(false); }
   };
 
   const copyLink = () => {
@@ -115,6 +166,18 @@ export default function TaskDetailPanel({
           </button>
 
           <div className="flex items-center gap-1.5">
+            <button
+              title="New task"
+              onClick={async () => {
+                const sectionId = task.section_id;
+                if (!sectionId) return;
+                const newTask = await addTask(sectionId, "");
+                if (newTask) onOpenTask(newTask.id);
+              }}
+              className="flex items-center gap-1 px-2.5 py-1.5 border border-[#E8E8E9] text-sm text-[#6B6F76] rounded-md hover:bg-[#F5F5F5]"
+            >
+              <Plus size={14} /> New task
+            </button>
             <div className="flex items-center gap-1">
               <div className="w-7 h-7 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold">MH</div>
               <button className="w-5 h-5 rounded-full border border-[#E8E8E9] bg-white flex items-center justify-center text-[#6B6F76] hover:bg-[#F5F5F5]"><Plus size={10} /></button>
@@ -160,7 +223,17 @@ export default function TaskDetailPanel({
         )}
 
         {/* Scrollable body */}
-        <div className={`flex-1 overflow-y-auto p-6 ${fullscreen ? "max-w-4xl mx-auto w-full" : ""}`}>
+        <div
+          className={`flex-1 overflow-y-auto p-6 relative ${fullscreen ? "max-w-4xl mx-auto w-full" : ""}`}
+          onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+          onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragging(false); }}
+          onDrop={handleDrop}
+        >
+          {isDragging && (
+            <div className="absolute inset-0 z-50 bg-[#4573D9]/10 border-2 border-dashed border-[#4573D9] rounded-lg flex items-center justify-center pointer-events-none">
+              <p className="text-[#4573D9] font-medium text-sm">Drop files to attach</p>
+            </div>
+          )}
 
           {editingTitle ? (
             <input autoFocus value={titleDraft}
@@ -171,11 +244,28 @@ export default function TaskDetailPanel({
             />
           ) : (
             <h1 onClick={() => { setTitleDraft(task.name); setEditingTitle(true); }}
-              className={`text-2xl font-bold mb-4 cursor-text hover:bg-[#FAFBFC] rounded px-1 -mx-1 ${task.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`}
+              className={`text-2xl font-bold mb-4 cursor-text hover:bg-[#FAFBFC] rounded px-1 -mx-1 ${task.completed ? "line-through text-[#6B6F76]" : task.name ? "text-[#151B26]" : "text-[#9EA3AA] font-normal italic"}`}
             >
-              {task.name}
+              {task.name || "Click to add task name…"}
             </h1>
           )}
+
+          <div className="flex items-center gap-4 mb-4">
+            <span className="w-24 text-sm text-[#6B6F76] font-medium flex-shrink-0">Task ID</span>
+            <span className="text-xs font-mono text-[#6B6F76] bg-[#F5F5F5] px-2 py-0.5 rounded select-all">{task.id}</span>
+          </div>
+
+          <div className="flex items-center gap-4 mb-4">
+            <span className="w-24 text-sm text-[#6B6F76] font-medium flex-shrink-0">Section</span>
+            <select
+              value={task.section_id ?? ""}
+              onChange={e => updateTask(task.id, { section_id: e.target.value || null })}
+              className="text-sm text-[#151B26] border border-[#E8E8E9] rounded px-2 py-1 outline-none hover:border-[#4573D9] focus:border-[#4573D9] bg-white"
+            >
+              <option value="">— No section</option>
+              {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
 
           <div className="flex items-center gap-4 mb-4">
             <span className="w-24 text-sm text-[#6B6F76] font-medium flex-shrink-0">Status</span>
@@ -188,6 +278,11 @@ export default function TaskDetailPanel({
           </div>
 
           <div className="flex items-center gap-4 mb-4">
+            <span className="w-24 text-sm text-[#6B6F76] font-medium flex-shrink-0">Task Type</span>
+            <TaskTypeBadge value={task.task_type} onChange={v => updateTask(task.id, { task_type: v })} />
+          </div>
+
+          <div className="flex items-center gap-4 mb-4">
             <span className="w-24 text-sm text-[#6B6F76] font-medium flex-shrink-0">Assignee</span>
             <button className="flex items-center gap-2 text-sm text-[#6B6F76] hover:bg-[#FAFBFC] px-2 py-1 rounded">
               <div className="w-5 h-5 rounded-full border-2 border-dashed border-[#6B6F76] flex items-center justify-center"><User size={10} /></div>
@@ -197,11 +292,20 @@ export default function TaskDetailPanel({
 
           <div className="flex items-center gap-4 mb-6">
             <span className="w-24 text-sm text-[#6B6F76] font-medium flex-shrink-0">Due date</span>
-            <label className="flex items-center gap-2 text-sm text-[#6B6F76] hover:bg-[#FAFBFC] px-2 py-1 rounded cursor-pointer">
+            <button
+              onClick={() => { dueDateRef.current?.showPicker?.(); dueDateRef.current?.click(); }}
+              className="flex items-center gap-2 text-sm text-[#6B6F76] hover:bg-[#FAFBFC] px-2 py-1 rounded"
+            >
               <div className="w-5 h-5 rounded-full border-2 border-dashed border-[#6B6F76] flex items-center justify-center"><Calendar size={10} /></div>
               {task.due_date ? new Date(task.due_date).toLocaleDateString() : "No due date"}
-              <input type="date" className="sr-only" value={task.due_date ?? ""} onChange={e => updateTask(task.id, { due_date: e.target.value || null })} />
-            </label>
+            </button>
+            <input
+              ref={dueDateRef}
+              type="date"
+              className="sr-only"
+              value={task.due_date ?? ""}
+              onChange={e => updateTask(task.id, { due_date: e.target.value || null })}
+            />
           </div>
 
           <div className="mb-6">
@@ -247,7 +351,7 @@ export default function TaskDetailPanel({
             <input ref={fileInputRef} type="file" multiple className="sr-only" onChange={handleFileSelect} />
             {attachments.length === 0 && !uploading ? (
               <button onClick={() => fileInputRef.current?.click()} className="w-full flex items-center justify-center gap-2 py-4 border-2 border-dashed border-[#E8E8E9] rounded text-sm text-[#6B6F76] hover:border-[#4573D9] hover:text-[#4573D9] transition-colors">
-                <Paperclip size={14} /> Click to attach files
+                <Paperclip size={14} /> Click, drag & drop, or paste (Ctrl+V)
               </button>
             ) : (
               <div className="flex flex-col gap-2">

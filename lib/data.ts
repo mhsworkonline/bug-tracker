@@ -13,6 +13,7 @@ export type ColumnKey =
   | "assignee"
   | "due_date"
   | "priority"
+  | "task_type"
   | "collaborators"
   | "created_by"
   | "created_on"
@@ -61,6 +62,7 @@ export const COLUMN_LABELS: Record<ColumnKey, string> = {
   assignee:        "Assignee",
   due_date:        "Due date",
   priority:        "Priority",
+  task_type:       "Task Type",
   collaborators:   "Collaborators",
   created_by:      "Created by",
   created_on:      "Created on",
@@ -91,6 +93,7 @@ export interface Task {
   description?: string | null;
   status: string;
   priority?: string | null;
+  task_type?: string | null;
   assignee?: string | null;
   due_date?: string | null;
   completed: boolean;
@@ -131,6 +134,7 @@ export const DEFAULT_COLUMNS: Array<{ key: ColumnKey; defaultVisible: boolean }>
   { key: "assignee",        defaultVisible: true  },
   { key: "due_date",        defaultVisible: true  },
   { key: "priority",        defaultVisible: true  },
+  { key: "task_type",       defaultVisible: true  },
   { key: "collaborators",   defaultVisible: false },
   { key: "created_by",      defaultVisible: false },
   { key: "created_on",      defaultVisible: false },
