@@ -117,6 +117,7 @@ export interface Project {
   name: string;
   description?: string | null;
   icon_bg: string;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }

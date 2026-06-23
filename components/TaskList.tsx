@@ -9,6 +9,9 @@ import {
 import TaskDetailPanel from "@/components/TaskDetailPanel";
 import CustomizePanel from "@/components/CustomizePanel";
 import ProjectDropdownMenu from "@/components/ProjectDropdownMenu";
+import EditProjectModal from "@/components/EditProjectModal";
+import MembersPanel from "@/components/MembersPanel";
+import ImportModal from "@/components/ImportModal";
 import FilterPanel, { type ActiveFilters, DEFAULT_FILTERS } from "@/components/FilterPanel";
 import SortDropdown, { type SortKey } from "@/components/SortDropdown";
 import ShowHideColumns from "@/components/ShowHideColumns";
@@ -22,6 +25,7 @@ import { createSupabaseBrowser } from "@/lib/auth-browser";
 import { useAdminSettings } from "@/lib/adminSettingsContext";
 import { ADMIN_EMAIL } from "@/lib/constants";
 import { useRouter } from "next/navigation";
+import { useStore } from "@/lib/store";
 import BoardView from "@/components/BoardView";
 import DashboardView from "@/components/DashboardView";
 
@@ -82,13 +86,23 @@ export default function TaskList({ projectId, userEmail }: { projectId: string; 
 
   const {
     project, sections, tasks, columnConfigs, loading, error,
+    updateProjectLocal,
     addSection, updateSection,
     addTask, updateTask, toggleTask, duplicateTask, deleteTask,
     addAttachment, removeAttachment,
     updateColumnConfig,
   } = useProject(projectId);
 
-  const { lockPriorities } = useAdminSettings();
+  const { lockPriorities, taskTypes } = useAdminSettings();
+  const { updateProject } = useStore();
+
+  const [userRole, setUserRole]               = useState<"lead" | "member">("member");
+  const canManage = isAdmin || userRole === "lead";
+
+  const [showEditProject, setShowEditProject] = useState(false);
+  const [showMembers, setShowMembers]         = useState(false);
+  const [showImport, setShowImport]           = useState(false);
+  const [copyToast, setCopyToast]             = useState(false);
 
   const [activeTab, setActiveTab]             = useState<"List"|"Board"|"Dashboard">("List");
   const [selectedTaskId, setSelectedTaskId]   = useState<string | null>(null);
@@ -113,8 +127,15 @@ export default function TaskList({ projectId, userEmail }: { projectId: string; 
 
   const [members, setMembers]             = useState<{ id: string; email: string; name?: string }[]>([]);
   useEffect(() => {
-    fetch(`/api/projects/${projectId}/members`).then(r => r.json()).then(d => setMembers(d.members ?? []));
-  }, [projectId]);
+    fetch(`/api/projects/${projectId}/members`).then(r => r.json()).then(d => {
+      const mbs = d.members ?? [];
+      setMembers(mbs);
+      if (!isAdmin && userEmail) {
+        const me = mbs.find((m: { email: string; role: string }) => m.email === userEmail);
+        if (me) setUserRole(me.role as "lead" | "member");
+      }
+    });
+  }, [projectId, isAdmin, userEmail]);
 
   const [addingIn, setAddingIn]           = useState<string | null>(null);
   const [newTaskName, setNewTaskName]     = useState("");
@@ -151,17 +172,18 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     requestAnimationFrame(() => { if (scrollRef.current) scrollRef.current.scrollTop = top; });
   }, [loading, projectId]);
 
-  // ESC closes task detail panel
+  // ESC closes task detail panel, then clears selection, then closes search
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (selectedTaskId) { setSelectedTaskId(null); return; }
+        if (selectedIds.size > 0) { setSelectedIds(new Set()); return; }
         if (showSearch) { setSearchQuery(""); setShowSearch(false); }
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [selectedTaskId, showSearch]);
+  }, [selectedTaskId, selectedIds, showSearch]);
 
   const visibleCols = columnConfigs.filter(c => c.visible).map(c => c.column_key as ColumnKey);
 
@@ -268,10 +290,10 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
 
   const handleExport = async (type: "csv"|"excel"|"pdf"|"json") => {
     if (!project) return;
-    if (type === "csv")   exportToCSV(project, sections, tasks);
-    if (type === "excel") await exportToExcel(project, sections, tasks);
-    if (type === "pdf")   await exportToPDF(project, sections, tasks);
-    if (type === "json")  exportToJSON(project, sections, tasks);
+    if (type === "csv")   exportToCSV(project, sections, filteredTasks, taskTypes);
+    if (type === "excel") await exportToExcel(project, sections, filteredTasks, taskTypes);
+    if (type === "pdf")   await exportToPDF(project, sections, filteredTasks, taskTypes);
+    if (type === "json")  exportToJSON(project, sections, filteredTasks);
   };
 
   const filterActive = activeFilters.incomplete || activeFilters.completed || activeFilters.justMyTasks ||
@@ -309,7 +331,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-2">
             {isAdmin ? (
-              <Link href="/admin" title={`${userEmail} — Admin Panel`} className="w-7 h-7 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold hover:opacity-80">{userInitials}</Link>
+              <Link href="/projects" title={userEmail} className="w-7 h-7 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold hover:opacity-80">{userInitials}</Link>
             ) : (
               <div title={userEmail} className="w-7 h-7 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold cursor-default">{userInitials}</div>
             )}
@@ -405,21 +427,21 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
               onChange={e => { if (e.target.value) updateSelectedTasks({ due_date: e.target.value }); }}
             />
           </label>
-          <button onClick={() => setSelectedIds(new Set())} className="ml-auto flex items-center gap-1 text-white/60 hover:text-white">
-            <X size={14} /> Clear
+          <button onClick={() => setSelectedIds(new Set())} className="ml-auto flex items-center gap-1 text-white/60 hover:text-white" title="Deselect all (Esc)">
+            <X size={14} /> Deselect all
           </button>
         </div>
       )}
 
       {activeTab === "Board" && (
         <BoardView
-          tasks={tasks} sections={sections} projectId={projectId}
+          tasks={filteredTasks} sections={sections} projectId={projectId}
           onOpenTask={id => setSelectedTaskId(id)}
           addTask={addTask} updateTask={updateTask}
         />
       )}
       {activeTab === "Dashboard" && (
-        <DashboardView tasks={tasks} sections={sections} />
+        <DashboardView tasks={filteredTasks} sections={sections} />
       )}
 
       {/* Table */}
@@ -468,18 +490,27 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
               <div onClick={e => toggleSelect(task.id, e)} className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 mr-2 cursor-pointer transition-colors ${isSelected ? "bg-[#4573D9] border-[#4573D9]" : "border-[#B0B3B8] hover:border-[#4573D9] group-hover:border-[#4573D9]"}`}>
                 {isSelected && <svg width="8" height="8" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="2.5" fill="white"/></svg>}
               </div>
-              <div className="flex-1 text-sm min-w-0 py-0.5 flex items-center gap-1 cursor-pointer border-r border-[#E8E8E9] pr-2" onClick={() => { setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }}>
-                {editingTaskId === task.id ? (
-                  <input autoFocus value={editingTaskName} onChange={e => setEditingTaskName(e.target.value)}
-                    onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") { e.stopPropagation(); updateTask(task.id, { name: editingTaskName.trim() || task.name }); setEditingTaskId(null); }}}
-                    onBlur={() => { updateTask(task.id, { name: editingTaskName.trim() || task.name }); setEditingTaskId(null); }}
-                    className="flex-1 outline-none bg-transparent border-b border-[#4573D9] text-[#151B26]" onClick={e => e.stopPropagation()} />
-                ) : (
-                  <span className={`min-w-0 truncate cursor-text ${task.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`}
-                    onClick={e => { e.stopPropagation(); setEditingTaskId(task.id); setEditingTaskName(task.name); }}>
-                    {task.name}
-                  </span>
-                )}
+              <div className="flex-1 text-sm min-w-0 py-0.5 flex items-center border-r border-[#E8E8E9]">
+                <div className="flex-1 min-w-0 flex items-center gap-1 cursor-pointer py-0.5 pl-0 pr-1" onClick={() => { setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }}>
+                  {editingTaskId === task.id ? (
+                    <input autoFocus value={editingTaskName} onChange={e => setEditingTaskName(e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") { e.stopPropagation(); updateTask(task.id, { name: editingTaskName.trim() || task.name }); setEditingTaskId(null); }}}
+                      onBlur={() => { updateTask(task.id, { name: editingTaskName.trim() || task.name }); setEditingTaskId(null); }}
+                      className="flex-1 outline-none bg-transparent border-b border-[#4573D9] text-[#151B26]" onClick={e => e.stopPropagation()} />
+                  ) : (
+                    <span className={`min-w-0 truncate cursor-text ${task.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`}
+                      onClick={e => { e.stopPropagation(); setEditingTaskId(task.id); setEditingTaskName(task.name); }}>
+                      {task.name}
+                    </span>
+                  )}
+                </div>
+                <button
+                  className="flex-shrink-0 p-1 mr-1 text-[#B0B3B8] hover:text-[#4573D9] hover:bg-[#EEF2FB] rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={e => { e.stopPropagation(); setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }}
+                  title="Open detail"
+                >
+                  <ChevronRight size={13} />
+                </button>
               </div>
               {visibleCols.includes("status") && <div className="w-32 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}><StatusBadge compact value={task.status} onChange={v => updateTaskOrBulk(task.id, { status: v })} /></div>}
               {visibleCols.includes("assignee") && (
@@ -515,7 +546,9 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
         {/* Sections + tasks */}
         {sections.map(section => {
           const sectionTasks = filteredTasks.filter(t => t.section_id === section.id);
-          const collapsed = collapsedSections.has(section.id);
+          const isSearchActive = searchQuery.trim() !== "" || filteredTasks.length !== tasks.length;
+          const collapsed = isSearchActive ? false : collapsedSections.has(section.id);
+          if (isSearchActive && sectionTasks.length === 0) return null;
           return (
             <div key={section.id}>
               {/* Section header */}
@@ -578,36 +611,45 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                       )}
                     </div>
 
-                    {/* Task name column: click text = inline edit, click empty space = open detail */}
-                    <div
-                      className="flex-1 text-sm min-w-0 py-1 flex items-center gap-1 cursor-pointer"
-                      onClick={() => { setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }}
-                    >
-                      {editingTaskId === task.id ? (
-                        <input
-                          autoFocus
-                          value={editingTaskName}
-                          onChange={e => setEditingTaskName(e.target.value)}
-                          onKeyDown={e => {
-                            if (e.key === "Enter" || e.key === "Escape") { e.stopPropagation(); updateTask(task.id, { name: editingTaskName.trim() || task.name }); setEditingTaskId(null); }
-                          }}
-                          onBlur={() => { updateTask(task.id, { name: editingTaskName.trim() || task.name }); setEditingTaskId(null); }}
-                          className="flex-1 outline-none bg-transparent border-b border-[#4573D9] text-[#151B26]"
-                          onClick={e => e.stopPropagation()}
-                        />
-                      ) : (
-                        <>
-                          <span
-                            className={`min-w-0 truncate cursor-text ${task.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`}
-                            onClick={e => { e.stopPropagation(); setEditingTaskId(task.id); setEditingTaskName(task.name); }}
-                          >
-                            {task.name}
-                          </span>
-                          {(task.BT_attachments?.length ?? 0) > 0 && (
-                            <span className="text-xs text-[#6B6F76] shrink-0" onClick={e => e.stopPropagation()}>📎 {task.BT_attachments!.length}</span>
-                          )}
-                        </>
-                      )}
+                    {/* Task name column: click text = inline edit, › button = open detail */}
+                    <div className="flex-1 text-sm min-w-0 py-1 flex items-center">
+                      <div
+                        className="flex-1 min-w-0 flex items-center gap-1 cursor-pointer pr-1"
+                        onClick={() => { setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }}
+                      >
+                        {editingTaskId === task.id ? (
+                          <input
+                            autoFocus
+                            value={editingTaskName}
+                            onChange={e => setEditingTaskName(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === "Enter" || e.key === "Escape") { e.stopPropagation(); updateTask(task.id, { name: editingTaskName.trim() || task.name }); setEditingTaskId(null); }
+                            }}
+                            onBlur={() => { updateTask(task.id, { name: editingTaskName.trim() || task.name }); setEditingTaskId(null); }}
+                            className="flex-1 outline-none bg-transparent border-b border-[#4573D9] text-[#151B26]"
+                            onClick={e => e.stopPropagation()}
+                          />
+                        ) : (
+                          <>
+                            <span
+                              className={`min-w-0 truncate cursor-text ${task.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`}
+                              onClick={e => { e.stopPropagation(); setEditingTaskId(task.id); setEditingTaskName(task.name); }}
+                            >
+                              {task.name}
+                            </span>
+                            {(task.BT_attachments?.length ?? 0) > 0 && (
+                              <span className="text-xs text-[#6B6F76] shrink-0" onClick={e => e.stopPropagation()}>📎 {task.BT_attachments!.length}</span>
+                            )}
+                          </>
+                        )}
+                      </div>
+                      <button
+                        className="flex-shrink-0 p-1 mr-1 text-[#B0B3B8] hover:text-[#4573D9] hover:bg-[#EEF2FB] rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={e => { e.stopPropagation(); setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }}
+                        title="Open detail"
+                      >
+                        <ChevronRight size={13} />
+                      </button>
                     </div>
 
                     {visibleCols.includes("status") && (
@@ -619,7 +661,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                       <div className="w-28 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}>
                         <select
                           value={task.assignee ?? ""}
-                          onChange={e => updateTask(task.id, { assignee: e.target.value || null })}
+                          onChange={e => updateTaskOrBulk(task.id, { assignee: e.target.value || null })}
                           className="w-full text-xs text-[#151B26] bg-transparent border-0 outline-none cursor-pointer hover:bg-[#F5F5F5] rounded px-1 py-0.5"
                         >
                           <option value="">Unassigned</option>
@@ -793,10 +835,59 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
           project={project}
           sections={sections}
           tasks={tasks}
+          canManage={canManage}
           position={projectMenuPos}
           onExport={handleExport}
+          onEditSettings={() => setShowEditProject(true)}
+          onManageMembers={() => setShowMembers(true)}
+          onCopyLink={() => {
+            navigator.clipboard.writeText(`${window.location.origin}/projects/${project.id}`);
+            setCopyToast(true);
+            setTimeout(() => setCopyToast(false), 2000);
+          }}
+          onDuplicate={async () => {
+            const r = await fetch(`/api/projects/${project.id}/duplicate`, { method: "POST" });
+            const d = await r.json();
+            if (d.project) { updateProject(d.project); router.push(`/projects/${d.project.id}`); }
+          }}
+          onImport={() => setShowImport(true)}
+          onToggleActive={async () => {
+            const r = await fetch(`/api/projects/${project.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ is_active: !project.is_active }),
+            });
+            const d = await r.json();
+            if (d.project) { updateProject(d.project); updateProjectLocal(d.project); }
+          }}
           onClose={() => setShowProjectMenu(false)}
         />
+      )}
+      {showEditProject && (
+        <EditProjectModal
+          project={project}
+          onClose={() => setShowEditProject(false)}
+          onSaved={p => { updateProject(p); updateProjectLocal(p); }}
+        />
+      )}
+      {showMembers && (
+        <MembersPanel
+          projectId={project.id}
+          canManage={canManage}
+          onClose={() => setShowMembers(false)}
+        />
+      )}
+      {showImport && (
+        <ImportModal
+          projectId={project.id}
+          onClose={() => setShowImport(false)}
+          onImported={() => window.location.reload()}
+        />
+      )}
+      {copyToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#151B26] text-white text-sm px-4 py-2 rounded-lg shadow-lg z-[200]">
+          Link copied to clipboard
+        </div>
       )}
     </div>
   );

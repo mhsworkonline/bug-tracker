@@ -19,6 +19,7 @@ export default function ProjectsPageClient({ isAdmin, userEmail, allowedProjectI
   const [query, setQuery] = useState("");
 
   const visible = projects.filter(p => {
+    if (!isAdmin && p.is_active === false) return false;
     if (allowedProjectIds !== null && !allowedProjectIds.includes(p.id)) return false;
     return p.name.toLowerCase().includes(query.toLowerCase());
   });
@@ -85,7 +86,7 @@ export default function ProjectsPageClient({ isAdmin, userEmail, allowedProjectI
             <Loader2 size={16} className="animate-spin" /> Loading projects…
           </div>
         ) : (
-          <ProjectsTable projects={visible} />
+          <ProjectsTable projects={visible} isAdmin={isAdmin} />
         )}
       </div>
     </div>

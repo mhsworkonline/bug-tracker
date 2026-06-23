@@ -53,7 +53,7 @@ export default function TaskDetailPanel({
   const [editingTitle, setEditingTitle]   = useState(true);
   const [titleDraft, setTitleDraft]       = useState(task.name);
   const [uploading, setUploading]         = useState(false);
-  const [members, setMembers]             = useState<{ id: string; email: string }[]>([]);
+  const [members, setMembers]             = useState<{ id: string; email: string; name?: string | null }[]>([]);
   const [assigneePending, setAssigneePending] = useState(false);
   const [fullscreen, setFullscreen]       = useState(false);
   const [showMenu, setShowMenu]           = useState(false);
@@ -315,7 +315,7 @@ export default function TaskDetailPanel({
               className="text-sm text-[#151B26] border-0 outline-none bg-transparent cursor-pointer hover:bg-[#FAFBFC] px-2 py-1 rounded"
             >
               <option value="">No assignee</option>
-              {members.map(m => <option key={m.id} value={m.email}>{m.email}</option>)}
+              {members.map(m => <option key={m.id} value={m.email}>{m.name ?? m.email}</option>)}
             </select>
             {assigneePending && <span className="text-xs text-amber-500 italic">Pending admin approval…</span>}
             </div>

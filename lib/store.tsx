@@ -9,6 +9,7 @@ interface StoreState {
   loading: boolean;
   addProject: (data: { name: string; description?: string; icon_bg: string }) => Promise<Project | null>;
   deleteProject: (id: string) => Promise<void>;
+  updateProject: (p: Project) => void;
   refresh: () => Promise<void>;
 }
 
@@ -66,8 +67,12 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     await supabase.from("BT_projects").delete().eq("id", id);
   }, []);
 
+  const updateProject = useCallback((p: Project) => {
+    setProjects(prev => prev.map(x => x.id === p.id ? p : x));
+  }, []);
+
   return (
-    <StoreContext.Provider value={{ projects, loading, addProject, deleteProject, refresh: load }}>
+    <StoreContext.Provider value={{ projects, loading, addProject, deleteProject, updateProject, refresh: load }}>
       {children}
     </StoreContext.Provider>
   );

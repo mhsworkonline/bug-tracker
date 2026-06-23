@@ -19,17 +19,8 @@ interface Props {
   updateTask: ProjectData["updateTask"];
 }
 
-function TaskCard({ task, onOpen, updateTask }: { task: Task; onOpen: () => void; updateTask: Props["updateTask"] }) {
+function TaskCard({ task, onOpen }: { task: Task; onOpen: () => void; updateTask: Props["updateTask"] }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
-  const [editing, setEditing] = useState(false);
-  const [editName, setEditName] = useState(task.name);
-
-  const commitEdit = () => {
-    const trimmed = editName.trim();
-    if (trimmed && trimmed !== task.name) updateTask(task.id, { name: trimmed });
-    else setEditName(task.name);
-    setEditing(false);
-  };
 
   return (
     <div
@@ -37,34 +28,15 @@ function TaskCard({ task, onOpen, updateTask }: { task: Task; onOpen: () => void
       style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }}
       {...attributes} {...listeners}
       onClick={onOpen}
-      className="bg-white border border-[#E8E8E9] rounded-lg p-3 hover:shadow-sm hover:border-[#C8C9CC] transition-all cursor-grab active:cursor-grabbing"
+      className="bg-white border border-[#E8E8E9] rounded-lg p-3 hover:shadow-sm hover:border-[#4573D9] transition-all cursor-pointer select-none"
     >
       <div className="flex items-start gap-2">
         {task.completed
           ? <CheckCircle2 size={15} className="text-green-500 flex-shrink-0 mt-0.5" />
           : <Circle size={15} className="text-[#C8C9CC] flex-shrink-0 mt-0.5" />}
-        {editing ? (
-          <input
-            autoFocus
-            value={editName}
-            onChange={e => setEditName(e.target.value)}
-            onBlur={commitEdit}
-            onKeyDown={e => {
-              if (e.key === "Enter") commitEdit();
-              if (e.key === "Escape") { setEditName(task.name); setEditing(false); }
-            }}
-            onClick={e => e.stopPropagation()}
-            onPointerDown={e => e.stopPropagation()}
-            className="flex-1 text-sm outline-none border-b border-[#4573D9] bg-transparent"
-          />
-        ) : (
-          <span
-            className={`flex-1 text-sm leading-snug line-clamp-3 cursor-text ${task.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`}
-            onClick={e => { e.stopPropagation(); setEditing(true); setEditName(task.name); }}
-          >
-            {task.name || <span className="text-[#B0B3B8] italic">Untitled</span>}
-          </span>
-        )}
+        <span className={`flex-1 text-sm leading-snug line-clamp-3 ${task.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`}>
+          {task.name || <span className="text-[#B0B3B8] italic">Untitled</span>}
+        </span>
       </div>
       {task.assignee && (
         <div className="mt-2 flex items-center gap-1.5">

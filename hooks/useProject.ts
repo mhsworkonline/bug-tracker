@@ -16,6 +16,7 @@ export interface ProjectData {
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
+  updateProjectLocal: (p: Project) => void;
   addSection: (name?: string) => Promise<Section | null>;
   updateSection: (id: string, name: string) => Promise<void>;
   deleteSection: (id: string) => Promise<void>;
@@ -236,9 +237,12 @@ export function useProject(projectId: string): ProjectData {
       .eq("column_key", key);
   }, [projectId]);
 
+  const updateProjectLocal = useCallback((p: Project) => setProject(p), []);
+
   return {
     project, sections, tasks, columnConfigs, loading, error,
     refresh: load,
+    updateProjectLocal,
     addSection, updateSection, deleteSection,
     addTask, duplicateTask, updateTask, toggleTask, deleteTask,
     addAttachment, removeAttachment,
