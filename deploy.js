@@ -23,7 +23,7 @@ if (command === "pull") {
 } else {
   const msg = args.join(" ") || "update";
   run("git add -A");
-  run(`git commit -m "${msg}"`);
+  try { run(`git commit -m "${msg}"`); } catch { console.log("Nothing to commit, skipping."); }
   run("git push origin main");
   console.log("\nDeploying to Vercel...");
   run(`npx vercel deploy --token ${VERCEL_TOKEN} --scope ${VERCEL_SCOPE} --prod --yes`);
