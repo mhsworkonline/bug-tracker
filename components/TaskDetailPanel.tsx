@@ -3,7 +3,7 @@
 import { useRef, useState, useEffect } from "react";
 import {
   X, Check, ThumbsUp, Link2, Maximize2, MoreHorizontal,
-  User, Calendar, ChevronDown, ChevronRight, Plus, Share2,
+  User, Calendar, ChevronDown, ChevronRight, ChevronUp, Plus, Share2,
   Paperclip, FileText, Image as ImageIcon, Film, Trash2, Loader2, Copy,
 } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
@@ -15,6 +15,7 @@ import { useAdminSettings } from "@/lib/adminSettingsContext";
 
 interface Props {
   task: Task;
+  tasks: Task[];
   projectId: string;
   projectName: string;
   projectColor: string;
@@ -45,11 +46,14 @@ function fileIcon(type: string) {
 }
 
 export default function TaskDetailPanel({
-  task, projectId, projectName, projectColor, sections, onClose,
+  task, tasks, projectId, projectName, projectColor, sections, onClose,
   updateTask, toggleTask, duplicateTask, deleteTask, addTask, onOpenTask,
   addAttachment, removeAttachment, userEmail, isAdmin = false,
 }: Props) {
   const { lockPriorities, requireAssigneeApproval } = useAdminSettings();
+  const taskIndex = tasks.findIndex(t => t.id === task.id);
+  const prevTask  = taskIndex > 0 ? tasks[taskIndex - 1] : null;
+  const nextTask  = taskIndex < tasks.length - 1 ? tasks[taskIndex + 1] : null;
   const [editingTitle, setEditingTitle]   = useState(true);
   const [titleDraft, setTitleDraft]       = useState(task.name);
   const [uploading, setUploading]         = useState(false);
@@ -176,21 +180,37 @@ export default function TaskDetailPanel({
           </button>
 
           <div className="flex items-center gap-1.5">
-            <button
-              title="New task"
-              onClick={async () => {
-                const sectionId = task.section_id;
-                if (!sectionId) return;
-                const newTask = await addTask(sectionId, "");
-                if (newTask) onOpenTask(newTask.id);
-              }}
-              className="flex items-center gap-1 px-2.5 py-1.5 border border-[#E8E8E9] text-sm text-[#6B6F76] rounded-md hover:bg-[#F5F5F5]"
-            >
-              <Plus size={14} /> New task
-            </button>
+            {/* Prev / Next navigation */}
+            <div className="flex items-center border border-[#E8E8E9] rounded-md overflow-hidden">
+              <button
+                title="Previous task"
+                disabled={!prevTask}
+                onClick={() => prevTask && onOpenTask(prevTask.id)}
+                className="p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] disabled:opacity-30 disabled:cursor-not-allowed border-r border-[#E8E8E9]"
+              >
+                <ChevronUp size={15} />
+              </button>
+              <button
+                title="Next task"
+                disabled={!nextTask}
+                onClick={() => nextTask && onOpenTask(nextTask.id)}
+                className="p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <ChevronDown size={15} />
+              </button>
+            </div>
             <div className="flex items-center gap-1">
               <div className="w-7 h-7 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold">MH</div>
-              <button className="w-5 h-5 rounded-full border border-[#E8E8E9] bg-white flex items-center justify-center text-[#6B6F76] hover:bg-[#F5F5F5]"><Plus size={10} /></button>
+              <button
+                title="Add collaborator"
+                onClick={async () => {
+                  const newTask = await addTask(task.section_id, "");
+                  if (newTask) onOpenTask(newTask.id);
+                }}
+                className="w-6 h-6 rounded-full border border-[#E8E8E9] bg-white flex items-center justify-center text-[#6B6F76] hover:bg-[#F5F5F5]"
+              >
+                <Plus size={13} strokeWidth={2.5} />
+              </button>
             </div>
             <button className="flex items-center gap-1.5 px-3 py-1.5 bg-[#4573D9] text-white text-sm rounded-md hover:bg-[#3F65C4]">
               <Share2 size={13} /> Share
@@ -246,15 +266,24 @@ export default function TaskDetailPanel({
           )}
 
           {editingTitle ? (
-            <input autoFocus value={titleDraft}
-              onChange={e => setTitleDraft(e.target.value)}
+            <textarea
+              autoFocus
+              value={titleDraft}
+              rows={1}
+              onChange={e => {
+                setTitleDraft(e.target.value);
+                e.target.style.height = "auto";
+                e.target.style.height = e.target.scrollHeight + "px";
+              }}
+              onFocus={e => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
               onBlur={saveTitle}
-              onKeyDown={e => { if (e.key === "Enter") saveTitle(); if (e.key === "Escape") setEditingTitle(false); }}
-              className="w-full text-2xl font-bold text-[#151B26] outline-none border-b-2 border-[#4573D9] mb-4 bg-transparent"
+              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); saveTitle(); } if (e.key === "Escape") setEditingTitle(false); }}
+              className="w-full text-2xl font-bold text-[#151B26] outline-none border-b-2 border-[#4573D9] mb-4 bg-transparent resize-none overflow-hidden leading-tight"
             />
           ) : (
-            <h1 onClick={() => { setTitleDraft(task.name); setEditingTitle(true); }}
-              className={`text-2xl font-bold mb-4 cursor-text hover:bg-[#FAFBFC] rounded px-1 -mx-1 ${task.completed ? "line-through text-[#6B6F76]" : task.name ? "text-[#151B26]" : "text-[#9EA3AA] font-normal italic"}`}
+            <h1
+              onClick={() => { setTitleDraft(task.name); setEditingTitle(true); }}
+              className={`text-2xl font-bold mb-4 cursor-text hover:bg-[#FAFBFC] rounded px-1 -mx-1 break-words whitespace-pre-wrap ${task.completed ? "line-through text-[#6B6F76]" : task.name ? "text-[#151B26]" : "text-[#9EA3AA] font-normal italic"}`}
             >
               {task.name || "Click to add task name…"}
             </h1>

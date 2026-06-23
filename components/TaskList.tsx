@@ -938,6 +938,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
           <TaskDetailPanel
             key={selectedTaskId}
             task={t}
+            tasks={filteredTasks}
             projectId={projectId}
             projectName={project.name}
             projectColor={project.icon_bg}

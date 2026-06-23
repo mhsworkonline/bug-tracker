@@ -32,7 +32,7 @@ export default function ShowHideColumns({ configs, onToggle, onClose }: Props) {
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div className="fixed right-0 top-0 h-full w-[340px] bg-white z-50 shadow-xl flex flex-col border-l border-[#E8E8E9]">
+      <div className="fixed right-0 top-0 h-full w-[320px] bg-white z-50 shadow-xl flex flex-col border-l border-[#E8E8E9]">
         {/* Header */}
         <div className="flex items-center gap-3 px-5 py-4 border-b border-[#E8E8E9] flex-shrink-0">
           <button onClick={onClose} className="p-1 text-[#6B6F76] hover:bg-[#F5F5F5] rounded">
@@ -65,13 +65,13 @@ export default function ShowHideColumns({ configs, onToggle, onClose }: Props) {
                 {/* Toggle */}
                 <button
                   onClick={() => onToggle(col.column_key as ColumnKey, !col.visible)}
-                  className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${
+                  className={`relative w-10 h-[22px] rounded-full transition-colors flex-shrink-0 overflow-hidden ${
                     col.visible ? "bg-[#4573D9]" : "bg-[#D1D5DB]"
                   }`}
                 >
                   <span
-                    className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                      col.visible ? "translate-x-4" : "translate-x-0.5"
+                    className={`absolute top-[3px] left-[3px] w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                      col.visible ? "translate-x-[18px]" : "translate-x-0"
                     }`}
                   />
                 </button>

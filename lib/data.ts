@@ -118,6 +118,8 @@ export interface Project {
   description?: string | null;
   icon_bg: string;
   is_active: boolean;
+  export_prefix: boolean;
+  export_prefix_format: "colon" | "bracket" | "slash";
   created_at: string;
   updated_at: string;
 }

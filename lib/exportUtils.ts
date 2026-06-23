@@ -60,7 +60,15 @@ function buildHeaders(tasks: Task[]): string[] {
   return headers;
 }
 
-function taskRows(sections: Section[], tasks: Task[], taskTypes: TaskTypeOption[]) {
+function formatTaskName(name: string, sectionName: string | undefined, project: Project): string {
+  if (!project.export_prefix || !sectionName) return name;
+  const fmt = project.export_prefix_format ?? "colon";
+  if (fmt === "bracket") return `[${sectionName}] ${name}`;
+  if (fmt === "slash")   return `${sectionName} / ${name}`;
+  return `${sectionName}: ${name}`;
+}
+
+function taskRows(sections: Section[], tasks: Task[], taskTypes: TaskTypeOption[], project: Project) {
   const maxAtts = Math.min(MAX_ATT_COLS, Math.max(0, ...tasks.map(t => (t.BT_attachments ?? []).length)));
   return tasks.map((t, i) => {
     const section     = sections.find(s => s.id === t.section_id);
@@ -69,7 +77,7 @@ function taskRows(sections: Section[], tasks: Task[], taskTypes: TaskTypeOption[
     const row: Record<string, string | number> = {
       "S.No.":       i + 1,
       "Section":     section?.name ?? "",
-      "Task Name":   t.name,
+      "Task Name":   formatTaskName(t.name, section?.name, project),
     };
     for (let j = 0; j < maxAtts; j++) {
       row[`Attachment ${j + 1}`] = attachments[j]?.url ?? "";
@@ -94,7 +102,7 @@ function download(filename: string, mime: string, content: string) {
 }
 
 export function exportToCSV(project: Project, sections: Section[], tasks: Task[], taskTypes: TaskTypeOption[]) {
-  const rows = taskRows(sections, tasks, taskTypes);
+  const rows = taskRows(sections, tasks, taskTypes, project);
   if (!rows.length) { alert("No tasks to export."); return; }
   const headers = Object.keys(rows[0]);
   const csv = [headers, ...rows.map(r => Object.values(r))]
@@ -108,7 +116,7 @@ export async function exportToExcel(project: Project, sections: Section[], tasks
   if (!tasks.length) { alert("No tasks to export."); return; }
 
   const headers    = buildHeaders(tasks);
-  const rows       = taskRows(sections, tasks, taskTypes);
+  const rows       = taskRows(sections, tasks, taskTypes, project);
   const totalRows  = rows.length + 1; // +1 for header
   const totalCols  = headers.length;
 
@@ -263,7 +271,7 @@ export async function exportToPDF(project: Project, sections: Section[], tasks: 
   doc.setTextColor(107, 111, 118);
   doc.text(`Exported ${new Date().toLocaleDateString()}`, 14, 25);
 
-  const rows = taskRows(sections, tasks, taskTypes);
+  const rows = taskRows(sections, tasks, taskTypes, project);
   if (!rows.length) { alert("No tasks to export."); return; }
 
   const head = [Object.keys(rows[0])];

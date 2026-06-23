@@ -7,6 +7,7 @@ import StatusSection from "./StatusSection";
 import PrioritySection from "./PrioritySection";
 import TaskTypeSection from "./TaskTypeSection";
 import StorageSection from "./StorageSection";
+import ExportSection from "./ExportSection";
 
 export default function AdminPage() {
   return (
@@ -23,6 +24,7 @@ export default function AdminPage() {
         <PrioritySection />
         <TaskTypeSection />
         <StorageSection />
+        <ExportSection />
       </div>
     </div>
   );
