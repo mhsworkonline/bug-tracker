@@ -260,10 +260,6 @@ export default function TaskDetailPanel({
             </h1>
           )}
 
-          <div className="flex items-center gap-4 mb-4">
-            <span className="w-24 text-sm text-[#6B6F76] font-medium flex-shrink-0">Task ID</span>
-            <span className="text-xs font-mono text-[#6B6F76] bg-[#F5F5F5] px-2 py-0.5 rounded select-all">{task.id}</span>
-          </div>
 
           <div className="flex items-center gap-4 mb-4">
             <span className="w-24 text-sm text-[#6B6F76] font-medium flex-shrink-0">Section</span>
