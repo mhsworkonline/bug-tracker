@@ -20,6 +20,7 @@ export interface ProjectData {
   addSection: (name?: string) => Promise<Section | null>;
   updateSection: (id: string, name: string) => Promise<void>;
   deleteSection: (id: string) => Promise<void>;
+  duplicateSection: (id: string) => Promise<void>;
   addTask: (sectionId: string | null, name: string, dueDate?: string) => Promise<Task | null>;
   duplicateTask: (taskId: string) => Promise<Task | null>;
   updateTask: (taskId: string, updates: Partial<Omit<Task, "id" | "project_id" | "created_at">>) => Promise<void>;
@@ -101,9 +102,27 @@ export function useProject(projectId: string): ProjectData {
 
   const deleteSection = useCallback(async (id: string) => {
     setSections(prev => prev.filter(s => s.id !== id));
-    setTasks(prev => prev.filter(t => t.section_id !== id));
+    setTasks(prev => prev.map(t => t.section_id === id ? { ...t, section_id: null } : t));
+    await supabase.from("BT_tasks").update({ section_id: null }).eq("section_id", id);
     await supabase.from("BT_sections").delete().eq("id", id);
   }, []);
+
+  const duplicateSection = useCallback(async (id: string): Promise<void> => {
+    const src = sections.find(s => s.id === id);
+    if (!src) return;
+    const { data: newSec } = await supabase.from("BT_sections")
+      .insert({ project_id: projectId, name: `${src.name} (copy)`, position: sections.length })
+      .select().single();
+    if (!newSec) return;
+    setSections(prev => [...prev, newSec]);
+    const srcTasks = tasks.filter(t => t.section_id === id);
+    if (!srcTasks.length) return;
+    const copies = srcTasks.map(({ id: _id, created_at: _c, updated_at: _u, BT_attachments: _a, ...t }) => ({
+      ...t, section_id: newSec.id, completed: false, completed_at: null,
+    }));
+    const { data: newTasks } = await supabase.from("BT_tasks").insert(copies).select("*, BT_attachments(*)");
+    if (newTasks) setTasks(prev => [...prev, ...newTasks]);
+  }, [sections, tasks, projectId]);
 
   /* ── tasks ── */
   const addTask = useCallback(async (sectionId: string | null, name: string, dueDate?: string): Promise<Task | null> => {
@@ -243,7 +262,7 @@ export function useProject(projectId: string): ProjectData {
     project, sections, tasks, columnConfigs, loading, error,
     refresh: load,
     updateProjectLocal,
-    addSection, updateSection, deleteSection,
+    addSection, updateSection, deleteSection, duplicateSection,
     addTask, duplicateTask, updateTask, toggleTask, deleteTask,
     addAttachment, removeAttachment,
     updateColumnConfig,

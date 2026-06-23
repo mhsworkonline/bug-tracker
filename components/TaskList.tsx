@@ -87,7 +87,7 @@ export default function TaskList({ projectId, userEmail }: { projectId: string; 
   const {
     project, sections, tasks, columnConfigs, loading, error,
     updateProjectLocal,
-    addSection, updateSection,
+    addSection, updateSection, deleteSection, duplicateSection,
     addTask, updateTask, toggleTask, duplicateTask, deleteTask,
     addAttachment, removeAttachment,
     updateColumnConfig,
@@ -99,6 +99,9 @@ export default function TaskList({ projectId, userEmail }: { projectId: string; 
   const [userRole, setUserRole]               = useState<"lead" | "member">("member");
   const canManage = isAdmin || userRole === "lead";
 
+  const [showAddTaskMenu, setShowAddTaskMenu] = useState(false);
+  const [openSectionMenu, setOpenSectionMenu] = useState<string | null>(null);
+  const [hoveredSection, setHoveredSection] = useState<string | null>(null);
   const [showEditProject, setShowEditProject] = useState(false);
   const [showMembers, setShowMembers]         = useState(false);
   const [showImport, setShowImport]           = useState(false);
@@ -176,6 +179,8 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        if (showAddTaskMenu) { setShowAddTaskMenu(false); return; }
+        if (openSectionMenu) { setOpenSectionMenu(null); return; }
         if (selectedTaskId) { setSelectedTaskId(null); return; }
         if (selectedIds.size > 0) { setSelectedIds(new Set()); return; }
         if (showSearch) { setSearchQuery(""); setShowSearch(false); }
@@ -183,7 +188,21 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [selectedTaskId, selectedIds, showSearch]);
+  }, [selectedTaskId, selectedIds, showSearch, showAddTaskMenu, openSectionMenu]);
+
+  useEffect(() => {
+    if (!openSectionMenu && !showAddTaskMenu) return;
+    const close = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (!t.closest("[data-section-menu]") && !t.closest("[data-addtask-menu]")) {
+        setOpenSectionMenu(null);
+        setHoveredSection(null);
+        setShowAddTaskMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [openSectionMenu, showAddTaskMenu]);
 
   const visibleCols = columnConfigs.filter(c => c.visible).map(c => c.column_key as ColumnKey);
 
@@ -356,15 +375,75 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
 
       {/* Toolbar */}
       <div className="flex items-center justify-between px-6 py-2 bg-white border-b border-[#E8E8E9] flex-shrink-0 gap-3">
-        <button
-          onClick={async () => {
-            const task = await addTask(null, "");
-            if (task) { setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }
-          }}
-          className="flex items-center gap-1 px-3 py-1.5 bg-[#4573D9] text-white text-sm rounded-md hover:bg-[#3F65C4] flex-shrink-0"
-        >
-          <Plus size={14} /> Add task
-        </button>
+        {/* Add task split button */}
+        <div className="relative flex items-center flex-shrink-0">
+          <div className="flex items-center border border-[#D0D2D6] rounded-md">
+            <button
+              onClick={async () => {
+                const task = await addTask(null, "");
+                if (task) { setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }
+              }}
+              className="flex items-center gap-1.5 pl-3 pr-2.5 py-1.5 text-sm text-[#151B26] hover:bg-[#F5F5F5] rounded-l-md"
+            >
+              <Plus size={14} className="text-[#6B6F76]" /> Add task
+            </button>
+            <div className="w-px h-5 bg-[#D0D2D6] flex-shrink-0" />
+            <button
+              onClick={e => { e.stopPropagation(); setShowAddTaskMenu(v => !v); }}
+              className="flex items-center px-1.5 py-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded-r-md"
+            >
+              <ChevronDown size={14} />
+            </button>
+          </div>
+          {showAddTaskMenu && (
+            <div data-addtask-menu className="absolute left-0 top-full mt-1 w-52 bg-white border border-[#E8E8E9] rounded-xl shadow-lg py-1 z-50">
+              <button
+                onClick={async () => {
+                  setShowAddTaskMenu(false);
+                  const task = await addTask(null, "");
+                  if (task) { setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }
+                }}
+                className="w-full flex items-center justify-between px-3 py-2 text-sm text-[#151B26] hover:bg-[#F5F5F5] rounded-lg mx-1" style={{ width: "calc(100% - 8px)" }}
+              >
+                <span className="flex items-center gap-2">
+                  <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="6.5" stroke="#4573D9" strokeWidth="1.5"/><path d="M5 7.5L7 9.5L10 6" stroke="#4573D9" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  Task
+                </span>
+                <span className="text-xs text-[#B0B3B8]">Default</span>
+              </button>
+              <button disabled className="w-full flex items-center justify-between px-3 py-2 text-sm text-[#B0B3B8] cursor-not-allowed mx-1" style={{ width: "calc(100% - 8px)" }}>
+                <span className="flex items-center gap-2">
+                  <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="6.5" stroke="#D0D2D6" strokeWidth="1.5"/></svg>
+                  Approval
+                </span>
+              </button>
+              <button disabled className="w-full flex items-center justify-between px-3 py-2 text-sm text-[#B0B3B8] cursor-not-allowed mx-1" style={{ width: "calc(100% - 8px)" }}>
+                <span className="flex items-center gap-2">
+                  <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="6.5" stroke="#D0D2D6" strokeWidth="1.5"/></svg>
+                  Milestone
+                </span>
+              </button>
+              <div className="my-1 border-t border-[#F0F1F3]" />
+              <button
+                onClick={async () => {
+                  setShowAddTaskMenu(false);
+                  const s = await addSection();
+                  if (s) { setRenamingSection(s.id); setSectionNameDraft(s.name); }
+                }}
+                className="w-full flex items-center justify-between px-3 py-2 text-sm text-[#151B26] hover:bg-[#F5F5F5] rounded-lg mx-1" style={{ width: "calc(100% - 8px)" }}
+              >
+                <span className="flex items-center gap-2">
+                  <svg width="15" height="4" viewBox="0 0 15 4" fill="none"><rect y="0" width="15" height="1.5" rx="0.75" fill="#6B6F76"/><rect y="2.5" width="15" height="1.5" rx="0.75" fill="#6B6F76"/></svg>
+                  Section
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="text-[10px] bg-[#F0F1F3] text-[#6B6F76] px-1.5 py-0.5 rounded font-medium">Tab</span>
+                  <span className="text-[10px] bg-[#F0F1F3] text-[#6B6F76] px-1.5 py-0.5 rounded font-medium">N</span>
+                </span>
+              </button>
+            </div>
+          )}
+        </div>
         <div className="flex items-center gap-0.5 flex-1 justify-end">
           {showSearch && (
             <div className="flex items-center gap-1 px-2 py-1 border border-[#4573D9] rounded-md bg-white">
@@ -486,6 +565,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
             <div
               key={task.id}
               className={`flex items-center px-6 py-1 border-b border-[#E8E8E9] hover:bg-[#F5F5F5] group cursor-default ${selectedTaskId === task.id || isSelected ? "bg-[#F5F5F5]" : ""}`}
+              onClick={() => { setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }}
             >
               <div onClick={e => toggleSelect(task.id, e)} className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 mr-2 cursor-pointer transition-colors ${isSelected ? "bg-[#4573D9] border-[#4573D9]" : "border-[#B0B3B8] hover:border-[#4573D9] group-hover:border-[#4573D9]"}`}>
                 {isSelected && <svg width="8" height="8" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="2.5" fill="white"/></svg>}
@@ -499,7 +579,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                       className="flex-1 outline-none bg-transparent border-b border-[#4573D9] text-[#151B26]" onClick={e => e.stopPropagation()} />
                   ) : (
                     <span className={`min-w-0 truncate cursor-text ${task.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`}
-                      onClick={e => { e.stopPropagation(); setEditingTaskId(task.id); setEditingTaskName(task.name); }}>
+                      onClick={e => { if (!task.name) return; e.stopPropagation(); setEditingTaskId(task.id); setEditingTaskName(task.name); }}>
                       {task.name}
                     </span>
                   )}
@@ -550,11 +630,15 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
           const collapsed = isSearchActive ? false : collapsedSections.has(section.id);
           if (isSearchActive && sectionTasks.length === 0) return null;
           return (
-            <div key={section.id}>
+            <div key={section.id} className="mt-3">
               {/* Section header */}
-              <div className="flex items-center px-6 py-2 border-b border-[#E8E8E9] group">
-                <button onClick={() => toggleCollapse(section.id)} className="mr-1 text-[#6B6F76] hover:text-[#151B26] flex-shrink-0">
-                  <ChevronDown size={14} className={`transition-transform ${collapsed ? "-rotate-90" : ""}`} />
+              <div
+                className="flex items-center px-6 py-1.5 border-y border-[#E8E8E9] bg-[#FAFBFC]"
+                onMouseEnter={() => setHoveredSection(section.id)}
+                onMouseLeave={() => { if (openSectionMenu !== section.id) setHoveredSection(null); }}
+              >
+                <button onClick={() => toggleCollapse(section.id)} className="mr-1.5 text-[#6B6F76] hover:text-[#151B26] flex-shrink-0 text-[10px] leading-none">
+                  {collapsed ? "▶" : "▼"}
                 </button>
                 {renamingSection === section.id ? (
                   <input
@@ -574,9 +658,58 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                     {section.name}
                   </button>
                 )}
-                <div className="ml-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => setAddingIn(section.id)} className="p-1 text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><Plus size={13} /></button>
-                  <button className="p-1 text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><MoreHorizontal size={13} /></button>
+                <span className="ml-2 text-xs text-[#B0B3B8]">{sectionTasks.length}</span>
+                <div
+                  data-section-menu
+                  className="ml-3 flex items-center gap-1 relative"
+                  style={{ opacity: hoveredSection === section.id || openSectionMenu === section.id ? 1 : 0 }}
+                >
+                  <button onClick={() => setAddingIn(section.id)} className="p-1 text-[#6B6F76] hover:bg-[#F0F1F3] rounded" title="Add task"><Plus size={13} /></button>
+                  <button
+                    onClick={e => { e.stopPropagation(); setOpenSectionMenu(openSectionMenu === section.id ? null : section.id); }}
+                    className={`p-1 rounded ${openSectionMenu === section.id ? "bg-[#F0F1F3] text-[#151B26]" : "text-[#6B6F76] hover:bg-[#F0F1F3]"}`}
+                    title="Section options"
+                  >
+                    <MoreHorizontal size={13} />
+                  </button>
+                  {openSectionMenu === section.id && (
+                    <div className="absolute left-0 top-full mt-1 w-56 bg-white border border-[#E8E8E9] rounded-xl shadow-lg py-1.5 z-50">
+                      {/* Rename */}
+                      <button
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[#151B26] hover:bg-[#F5F5F5]"
+                        onClick={() => { setOpenSectionMenu(null); setRenamingSection(section.id); setSectionNameDraft(section.name); }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 2.5l2 2-7 7H2.5V9l7-6.5z" stroke="#6B6F76" strokeWidth="1.2" strokeLinejoin="round"/></svg>
+                        Rename section
+                      </button>
+                      {/* Add section below */}
+                      <button
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[#151B26] hover:bg-[#F5F5F5]"
+                        onClick={async () => { setOpenSectionMenu(null); const s = await addSection(); if (s) { setRenamingSection(s.id); setSectionNameDraft(s.name); } }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect y="2" width="14" height="1.5" rx="0.75" fill="#6B6F76"/><rect y="6.25" width="14" height="1.5" rx="0.75" fill="#6B6F76"/><rect y="10.5" width="14" height="1.5" rx="0.75" fill="#6B6F76"/></svg>
+                        Add section below
+                      </button>
+                      {/* Duplicate */}
+                      <button
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[#151B26] hover:bg-[#F5F5F5]"
+                        onClick={async () => { setOpenSectionMenu(null); await duplicateSection(section.id); }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="4" y="4" width="8" height="9" rx="1" stroke="#6B6F76" strokeWidth="1.2"/><path d="M2 10V2a1 1 0 011-1h7" stroke="#6B6F76" strokeWidth="1.2" strokeLinecap="round"/></svg>
+                        Duplicate section
+                      </button>
+                      <div className="my-1 border-t border-[#F0F1F3]" />
+                      {/* Delete */}
+                      <button
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[#E5534B] hover:bg-[#FFF5F5]"
+                        onClick={async () => { setOpenSectionMenu(null); await deleteSection(section.id); }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3.5h10M5 3.5V2.5a.5.5 0 01.5-.5h3a.5.5 0 01.5.5v1M11.5 3.5l-.8 8a1 1 0 01-1 .9H4.3a1 1 0 01-1-.9l-.8-8" stroke="#E5534B" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        Delete section
+                        <span className="ml-auto text-[10px] text-[#B0B3B8]">tasks → default</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -587,6 +720,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                   <div
                     key={task.id}
                     className={`flex items-center px-6 py-1 border-b border-[#E8E8E9] hover:bg-[#F5F5F5] group cursor-default ${selectedTaskId === task.id || isSelected ? "bg-[#F5F5F5]" : ""}`}
+                    onClick={() => { setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }}
                   >
                     {/* Radio / select circle */}
                     <div
@@ -633,7 +767,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                           <>
                             <span
                               className={`min-w-0 truncate cursor-text ${task.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`}
-                              onClick={e => { e.stopPropagation(); setEditingTaskId(task.id); setEditingTaskName(task.name); }}
+                              onClick={e => { if (!task.name) return; e.stopPropagation(); setEditingTaskId(task.id); setEditingTaskName(task.name); }}
                             >
                               {task.name}
                             </span>
@@ -790,7 +924,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
         <div className="px-6 py-3">
           <button
             onClick={async () => { const s = await addSection(); if (s) { setRenamingSection(s.id); setSectionNameDraft(s.name); } }}
-            className="flex items-center gap-1 text-sm text-[#6B6F76] hover:text-[#151B26]"
+            className="flex items-center gap-1.5 text-sm text-[#6B6F76] hover:text-[#151B26]"
           >
             <Plus size={14} /> Add section
           </button>
