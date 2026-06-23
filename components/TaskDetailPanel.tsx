@@ -158,7 +158,7 @@ export default function TaskDetailPanel({
 
   const panelClass = fullscreen
     ? "fixed inset-0 bg-white z-50 flex flex-col overflow-hidden"
-    : "fixed right-0 top-0 h-full w-[45%] bg-white z-50 shadow-xl flex flex-col overflow-hidden";
+    : "fixed right-0 top-0 h-full w-full sm:w-[45%] bg-white z-50 shadow-xl flex flex-col overflow-hidden";
 
   return (
     <>

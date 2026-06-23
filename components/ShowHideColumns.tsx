@@ -32,7 +32,7 @@ export default function ShowHideColumns({ configs, onToggle, onClose }: Props) {
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div className="fixed right-0 top-0 h-full w-[320px] bg-white z-50 shadow-xl flex flex-col border-l border-[#E8E8E9]">
+      <div className="fixed right-0 top-0 h-full w-full sm:w-[320px] bg-white z-50 shadow-xl flex flex-col border-l border-[#E8E8E9]">
         {/* Header */}
         <div className="flex items-center gap-3 px-5 py-4 border-b border-[#E8E8E9] flex-shrink-0">
           <button onClick={onClose} className="p-1 text-[#6B6F76] hover:bg-[#F5F5F5] rounded">

@@ -334,21 +334,21 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
   return (
     <div className="flex flex-col h-full bg-[#FAFBFC]">
       {/* Top bar */}
-      <div className="flex items-center justify-between px-6 py-3 bg-white border-b border-[#E8E8E9] flex-shrink-0">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between px-3 sm:px-6 py-3 bg-white border-b border-[#E8E8E9] flex-shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
           <div className="w-6 h-6 rounded flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: project.icon_bg }}>
             {project.name[0]}
           </div>
-          <button onClick={openProjectMenu} className="flex items-center gap-1 text-xl font-bold text-[#151B26] hover:bg-[#F5F5F5] px-2 py-1 rounded">
-            {project.name} <ChevronDown size={18} />
+          <button onClick={openProjectMenu} className="flex items-center gap-1 text-base sm:text-xl font-bold text-[#151B26] hover:bg-[#F5F5F5] px-1 sm:px-2 py-1 rounded min-w-0 truncate">
+            <span className="truncate">{project.name}</span> <ChevronDown size={18} className="flex-shrink-0" />
           </button>
-          <button className="p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><Star size={16} /></button>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 border border-[#E8E8E9] text-sm text-[#6B6F76] rounded-full hover:bg-[#F5F5F5]">
+          <button className="p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded hidden sm:flex"><Star size={16} /></button>
+          <button className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 border border-[#E8E8E9] text-sm text-[#6B6F76] rounded-full hover:bg-[#F5F5F5]">
             ○ Set status <ChevronDown size={13} />
           </button>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2">
             {isAdmin ? (
               <Link href="/projects" title={userEmail} className="w-7 h-7 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold hover:opacity-80">{userInitials}</Link>
             ) : (
@@ -356,17 +356,17 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
             )}
             <button onClick={handleLogout} className="px-2 py-1 text-xs text-[#6B6F76] border border-[#E8E8E9] rounded hover:bg-[#F5F5F5]">Logout</button>
           </div>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 bg-[#4573D9] text-white text-sm rounded-md hover:bg-[#3F65C4]">
+          <button className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-[#4573D9] text-white text-sm rounded-md hover:bg-[#3F65C4]">
             <Share2 size={13} /> Share
           </button>
-          <button onClick={() => { setShowCustomize(true); setSelectedTaskId(null); setShowColumns(false); }} className="flex items-center gap-1.5 px-3 py-1.5 border border-[#E8E8E9] text-sm text-[#151B26] rounded-md hover:bg-[#F5F5F5]">
+          <button onClick={() => { setShowCustomize(true); setSelectedTaskId(null); setShowColumns(false); }} className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 border border-[#E8E8E9] text-sm text-[#151B26] rounded-md hover:bg-[#F5F5F5]">
             <Settings2 size={13} /> Customize
           </button>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center px-6 bg-white border-b border-[#E8E8E9] flex-shrink-0">
+      <div className="flex items-center px-3 sm:px-6 bg-white border-b border-[#E8E8E9] flex-shrink-0 overflow-x-auto">
         {TABS.map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab as "List"|"Board"|"Dashboard")} className={`px-3 py-2.5 text-sm whitespace-nowrap transition-colors ${tab === activeTab ? "font-semibold text-[#151B26] border-b-2 border-[#151B26]" : "text-[#6B6F76] hover:text-[#151B26]"}`}>{tab}</button>
         ))}
@@ -374,7 +374,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
       </div>
 
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-6 py-2 bg-white border-b border-[#E8E8E9] flex-shrink-0 gap-3">
+      <div className="flex items-center justify-between px-3 sm:px-6 py-2 bg-white border-b border-[#E8E8E9] flex-shrink-0 gap-3">
         {/* Add task split button */}
         <div className="relative flex items-center flex-shrink-0">
           <div className="flex items-center border border-[#D0D2D6] rounded-md">
@@ -473,8 +473,8 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
             </button>
             {showSort && <SortDropdown current={sortKey} onChange={setSortKey} onClose={() => setShowSort(false)} />}
           </div>
-          <button className="flex items-center gap-1 px-2.5 py-1.5 text-sm text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><MoreHorizontal size={14} /> Group</button>
-          <button onClick={() => { setShowColumns(v => !v); setShowCustomize(false); setSelectedTaskId(null); }} className={`flex items-center gap-1 px-2.5 py-1.5 text-sm rounded transition-colors ${showColumns ? "text-[#4573D9] bg-[#EEF2FB]" : "text-[#6B6F76] hover:bg-[#F5F5F5]"}`}>
+          <button className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 text-sm text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><MoreHorizontal size={14} /> Group</button>
+          <button onClick={() => { setShowColumns(v => !v); setShowCustomize(false); setSelectedTaskId(null); }} className={`hidden sm:flex items-center gap-1 px-2.5 py-1.5 text-sm rounded transition-colors ${showColumns ? "text-[#4573D9] bg-[#EEF2FB]" : "text-[#6B6F76] hover:bg-[#F5F5F5]"}`}>
             <Settings2 size={14} /> Options
           </button>
           <button
@@ -536,18 +536,18 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
         }}
       >
         {/* Column headers */}
-        <div className="flex items-center px-6 py-2 border-b border-[#E8E8E9] sticky top-0 bg-[#FAFBFC] z-10">
+        <div className="flex items-center px-3 sm:px-6 py-2 border-b border-[#E8E8E9] sticky top-0 bg-[#FAFBFC] z-10">
           <div className="w-5 mr-2 flex-shrink-0" />
           <SortHeader label="Name"          sk="alphabetical"   sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="flex-1 border-r border-[#E8E8E9] pr-3" />
-          {visibleCols.includes("status")           && <div className="w-32 text-xs font-medium text-[#6B6F76] border-r border-[#E8E8E9] pl-3">Status</div>}
-          {visibleCols.includes("assignee")         && <SortHeader label="Assignee"    sk="assignee"      sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="w-28 border-r border-[#E8E8E9] pl-3" />}
-          {visibleCols.includes("due_date")         && <SortHeader label="Due date"    sk="dueDate"       sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="w-28 border-r border-[#E8E8E9] pl-3" />}
-          {visibleCols.includes("priority")         && <SortHeader label="Priority"    sk="priority"      sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="w-32 border-r border-[#E8E8E9] pl-3" />}
-          {visibleCols.includes("task_type")        && <div className="w-32 text-xs font-medium text-[#6B6F76] border-r border-[#E8E8E9] pl-3">Task Type</div>}
-          {visibleCols.includes("created_on")       && <SortHeader label="Created on"  sk="createdAt"     sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="w-40 border-r border-[#E8E8E9] pl-3" />}
-          {visibleCols.includes("last_modified_on") && <SortHeader label="Last modified" sk="lastModifiedAt" sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="w-40 border-r border-[#E8E8E9] pl-3" />}
-          {visibleCols.includes("completed_on")     && <SortHeader label="Completed on" sk="completedAt"  sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="w-40 border-r border-[#E8E8E9] pl-3" />}
-          <div className="w-8 text-xs text-[#4573D9] cursor-pointer">+</div>
+          {visibleCols.includes("status")           && <div className="hidden sm:block w-32 text-xs font-medium text-[#6B6F76] border-r border-[#E8E8E9] pl-3">Status</div>}
+          {visibleCols.includes("assignee")         && <SortHeader label="Assignee"    sk="assignee"      sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="hidden sm:block w-28 border-r border-[#E8E8E9] pl-3" />}
+          {visibleCols.includes("due_date")         && <SortHeader label="Due date"    sk="dueDate"       sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="hidden sm:block w-28 border-r border-[#E8E8E9] pl-3" />}
+          {visibleCols.includes("priority")         && <SortHeader label="Priority"    sk="priority"      sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="hidden sm:block w-32 border-r border-[#E8E8E9] pl-3" />}
+          {visibleCols.includes("task_type")        && <div className="hidden sm:block w-32 text-xs font-medium text-[#6B6F76] border-r border-[#E8E8E9] pl-3">Task Type</div>}
+          {visibleCols.includes("created_on")       && <SortHeader label="Created on"  sk="createdAt"     sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="hidden sm:block w-40 border-r border-[#E8E8E9] pl-3" />}
+          {visibleCols.includes("last_modified_on") && <SortHeader label="Last modified" sk="lastModifiedAt" sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="hidden sm:block w-40 border-r border-[#E8E8E9] pl-3" />}
+          {visibleCols.includes("completed_on")     && <SortHeader label="Completed on" sk="completedAt"  sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="hidden sm:block w-40 border-r border-[#E8E8E9] pl-3" />}
+          <div className="w-8 text-xs text-[#4573D9] cursor-pointer hidden sm:block">+</div>
         </div>
 
         {/* Filter/search info bar */}
@@ -564,24 +564,27 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
           return (
             <div
               key={task.id}
-              className={`flex items-center px-6 py-1 border-b border-[#E8E8E9] hover:bg-[#F5F5F5] group cursor-default ${selectedTaskId === task.id || isSelected ? "bg-[#F5F5F5]" : ""}`}
+              className={`flex items-center px-3 sm:px-6 py-1 border-b border-[#E8E8E9] hover:bg-[#F5F5F5] group cursor-default ${selectedTaskId === task.id || isSelected ? "bg-[#F5F5F5]" : ""}`}
               onClick={() => { setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }}
             >
               <div onClick={e => toggleSelect(task.id, e)} className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 mr-2 cursor-pointer transition-colors ${isSelected ? "bg-[#4573D9] border-[#4573D9]" : "border-[#B0B3B8] hover:border-[#4573D9] group-hover:border-[#4573D9]"}`}>
                 {isSelected && <svg width="8" height="8" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="2.5" fill="white"/></svg>}
               </div>
-              <div className="flex-1 text-sm min-w-0 py-0.5 flex items-center border-r border-[#E8E8E9]">
-                <div className="flex-1 min-w-0 flex items-center gap-1 cursor-pointer py-0.5 pl-0 pr-1" onClick={() => { setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }}>
+              <div className="flex-1 text-sm min-w-0 py-0.5 flex items-center sm:border-r border-[#E8E8E9]">
+                <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-0.5 cursor-pointer py-0.5 pl-0 pr-1" onClick={() => { setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }}>
                   {editingTaskId === task.id ? (
                     <input autoFocus value={editingTaskName} onChange={e => setEditingTaskName(e.target.value)}
                       onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") { e.stopPropagation(); updateTask(task.id, { name: editingTaskName.trim() || task.name }); setEditingTaskId(null); }}}
                       onBlur={() => { updateTask(task.id, { name: editingTaskName.trim() || task.name }); setEditingTaskId(null); }}
                       className="flex-1 outline-none bg-transparent border-b border-[#4573D9] text-[#151B26]" onClick={e => e.stopPropagation()} />
                   ) : (
-                    <span className={`min-w-0 truncate cursor-text ${task.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`}
-                      onClick={e => { if (!task.name) return; e.stopPropagation(); setEditingTaskId(task.id); setEditingTaskName(task.name); }}>
-                      {task.name}
-                    </span>
+                    <>
+                      <span className={`min-w-0 truncate cursor-text ${task.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`}
+                        onClick={e => { if (!task.name) return; e.stopPropagation(); setEditingTaskId(task.id); setEditingTaskName(task.name); }}>
+                        {task.name}
+                      </span>
+                      <span className="sm:hidden text-[10px] text-[#6B6F76] bg-[#F3F4F6] px-1.5 py-0.5 rounded w-fit">{task.status?.replace(/_/g," ")}</span>
+                    </>
                   )}
                 </div>
                 <button
@@ -592,9 +595,9 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                   <ChevronRight size={13} />
                 </button>
               </div>
-              {visibleCols.includes("status") && <div className="w-32 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}><StatusBadge compact value={task.status} onChange={v => updateTaskOrBulk(task.id, { status: v })} /></div>}
+              {visibleCols.includes("status") && <div className="hidden sm:block w-32 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}><StatusBadge compact value={task.status} onChange={v => updateTaskOrBulk(task.id, { status: v })} /></div>}
               {visibleCols.includes("assignee") && (
-                <div className="w-28 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}>
+                <div className="hidden sm:block w-28 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}>
                   <select value={task.assignee ?? ""} onChange={e => updateTaskOrBulk(task.id, { assignee: e.target.value || null })}
                     className="w-full text-xs text-[#151B26] bg-transparent border-0 outline-none cursor-pointer hover:bg-[#F5F5F5] rounded px-1 py-0.5">
                     <option value="">Unassigned</option>
@@ -603,7 +606,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                 </div>
               )}
               {visibleCols.includes("due_date") && (
-                <div className="w-28 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}>
+                <div className="hidden sm:block w-28 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}>
                   <div className="relative inline-flex items-center gap-1 cursor-pointer">
                     {task.due_date && <span className="text-xs text-[#6B6F76]">{fmtDate(task.due_date)}</span>}
                     <div className={`relative ${task.due_date ? "" : "opacity-0 group-hover:opacity-100"}`}>
@@ -613,12 +616,12 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                   </div>
                 </div>
               )}
-              {visibleCols.includes("priority") && <div className="w-32 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}><PriorityBadge compact value={task.priority ?? "high"} onChange={v => updateTaskOrBulk(task.id, { priority: v })} disabled={lockPriorities && !isAdmin} /></div>}
-              {visibleCols.includes("task_type") && <div className="w-32 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}><TaskTypeBadge compact value={task.task_type ?? "bug"} onChange={v => updateTaskOrBulk(task.id, { task_type: v })} /></div>}
-              {visibleCols.includes("created_on") && <div className="w-40 border-r border-[#E8E8E9] pl-3"><span className="text-xs text-[#6B6F76]">{fmtDateTime(task.created_at)}</span></div>}
-              {visibleCols.includes("last_modified_on") && <div className="w-40 border-r border-[#E8E8E9] pl-3"><span className="text-xs text-[#6B6F76]">{fmtDateTime(task.updated_at)}</span></div>}
-              {visibleCols.includes("completed_on") && <div className="w-40 border-r border-[#E8E8E9] pl-3"><span className="text-xs text-[#6B6F76]">{fmtDateTime(task.completed_at)}</span></div>}
-              <div className="w-8" />
+              {visibleCols.includes("priority") && <div className="hidden sm:block w-32 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}><PriorityBadge compact value={task.priority ?? "high"} onChange={v => updateTaskOrBulk(task.id, { priority: v })} disabled={lockPriorities && !isAdmin} /></div>}
+              {visibleCols.includes("task_type") && <div className="hidden sm:block w-32 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}><TaskTypeBadge compact value={task.task_type ?? "bug"} onChange={v => updateTaskOrBulk(task.id, { task_type: v })} /></div>}
+              {visibleCols.includes("created_on") && <div className="hidden sm:block w-40 border-r border-[#E8E8E9] pl-3"><span className="text-xs text-[#6B6F76]">{fmtDateTime(task.created_at)}</span></div>}
+              {visibleCols.includes("last_modified_on") && <div className="hidden sm:block w-40 border-r border-[#E8E8E9] pl-3"><span className="text-xs text-[#6B6F76]">{fmtDateTime(task.updated_at)}</span></div>}
+              {visibleCols.includes("completed_on") && <div className="hidden sm:block w-40 border-r border-[#E8E8E9] pl-3"><span className="text-xs text-[#6B6F76]">{fmtDateTime(task.completed_at)}</span></div>}
+              <div className="w-8 hidden sm:block" />
             </div>
           );
         })}
@@ -633,7 +636,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
             <div key={section.id} className="mt-3">
               {/* Section header */}
               <div
-                className="flex items-center px-6 py-1.5 border-y border-[#E8E8E9] bg-[#FAFBFC]"
+                className="flex items-center px-3 sm:px-6 py-1.5 border-y border-[#E8E8E9] bg-[#FAFBFC]"
                 onMouseEnter={() => setHoveredSection(section.id)}
                 onMouseLeave={() => { if (openSectionMenu !== section.id) setHoveredSection(null); }}
               >
@@ -719,7 +722,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                 return (
                   <div
                     key={task.id}
-                    className={`flex items-center px-6 py-1 border-b border-[#E8E8E9] hover:bg-[#F5F5F5] group cursor-default ${selectedTaskId === task.id || isSelected ? "bg-[#F5F5F5]" : ""}`}
+                    className={`flex items-center px-3 sm:px-6 py-1 border-b border-[#E8E8E9] hover:bg-[#F5F5F5] group cursor-default ${selectedTaskId === task.id || isSelected ? "bg-[#F5F5F5]" : ""}`}
                     onClick={() => { setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }}
                   >
                     {/* Radio / select circle */}
@@ -746,9 +749,9 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                     </div>
 
                     {/* Task name column: click text = inline edit, › button = open detail */}
-                    <div className="flex-1 text-sm min-w-0 py-1 flex items-center">
+                    <div className="flex-1 text-sm min-w-0 py-1 flex items-center sm:border-r border-[#E8E8E9]">
                       <div
-                        className="flex-1 min-w-0 flex items-center gap-1 cursor-pointer pr-1"
+                        className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-0.5 cursor-pointer pr-1"
                         onClick={() => { setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }}
                       >
                         {editingTaskId === task.id ? (
@@ -774,6 +777,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                             {(task.BT_attachments?.length ?? 0) > 0 && (
                               <span className="text-xs text-[#6B6F76] shrink-0" onClick={e => e.stopPropagation()}>📎 {task.BT_attachments!.length}</span>
                             )}
+                            <span className="sm:hidden text-[10px] text-[#6B6F76] bg-[#F3F4F6] px-1.5 py-0.5 rounded w-fit">{task.status?.replace(/_/g," ")}</span>
                           </>
                         )}
                       </div>
@@ -787,65 +791,56 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                     </div>
 
                     {visibleCols.includes("status") && (
-                      <div className="w-32 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}>
+                      <div className="hidden sm:block w-32 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}>
                         <StatusBadge compact value={task.status} onChange={v => updateTaskOrBulk(task.id, { status: v })} />
                       </div>
                     )}
                     {visibleCols.includes("assignee") && (
-                      <div className="w-28 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}>
-                        <select
-                          value={task.assignee ?? ""}
-                          onChange={e => updateTaskOrBulk(task.id, { assignee: e.target.value || null })}
-                          className="w-full text-xs text-[#151B26] bg-transparent border-0 outline-none cursor-pointer hover:bg-[#F5F5F5] rounded px-1 py-0.5"
-                        >
+                      <div className="hidden sm:block w-28 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}>
+                        <select value={task.assignee ?? ""} onChange={e => updateTaskOrBulk(task.id, { assignee: e.target.value || null })} className="w-full text-xs text-[#151B26] bg-transparent border-0 outline-none cursor-pointer hover:bg-[#F5F5F5] rounded px-1 py-0.5">
                           <option value="">Unassigned</option>
                           {members.map(m => <option key={m.id} value={m.email}>{m.name ?? m.email}</option>)}
                         </select>
                       </div>
                     )}
                     {visibleCols.includes("due_date") && (
-                      <div className="w-28 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}>
+                      <div className="hidden sm:block w-28 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}>
                         <div className="relative inline-flex items-center gap-1 cursor-pointer">
                           {task.due_date && <span className="text-xs text-[#6B6F76]">{fmtDate(task.due_date)}</span>}
                           <div className={`relative ${task.due_date ? "" : "opacity-0 group-hover:opacity-100"}`}>
                             <Calendar size={13} className="text-[#6B6F76]" />
-                            <input
-                              type="date"
-                              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                              value={task.due_date ?? ""}
-                              onChange={e => updateTaskOrBulk(task.id, { due_date: e.target.value || null })}
-                            />
+                            <input type="date" className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={task.due_date ?? ""} onChange={e => updateTaskOrBulk(task.id, { due_date: e.target.value || null })} />
                           </div>
                         </div>
                       </div>
                     )}
                     {visibleCols.includes("priority") && (
-                      <div className="w-32 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}>
+                      <div className="hidden sm:block w-32 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}>
                         <PriorityBadge compact value={task.priority ?? "high"} onChange={v => updateTaskOrBulk(task.id, { priority: v })} disabled={lockPriorities && !isAdmin} />
                       </div>
                     )}
                     {visibleCols.includes("task_type") && (
-                      <div className="w-32 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}>
+                      <div className="hidden sm:block w-32 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}>
                         <TaskTypeBadge compact value={task.task_type ?? "bug"} onChange={v => updateTaskOrBulk(task.id, { task_type: v })} />
                       </div>
                     )}
                     {visibleCols.includes("created_on") && (
-                      <div className="w-40 border-r border-[#E8E8E9] pl-3"><span className="text-xs text-[#6B6F76]">{fmtDateTime(task.created_at)}</span></div>
+                      <div className="hidden sm:block w-40 border-r border-[#E8E8E9] pl-3"><span className="text-xs text-[#6B6F76]">{fmtDateTime(task.created_at)}</span></div>
                     )}
                     {visibleCols.includes("last_modified_on") && (
-                      <div className="w-40 border-r border-[#E8E8E9] pl-3"><span className="text-xs text-[#6B6F76]">{fmtDateTime(task.updated_at)}</span></div>
+                      <div className="hidden sm:block w-40 border-r border-[#E8E8E9] pl-3"><span className="text-xs text-[#6B6F76]">{fmtDateTime(task.updated_at)}</span></div>
                     )}
                     {visibleCols.includes("completed_on") && (
-                      <div className="w-40 border-r border-[#E8E8E9] pl-3"><span className="text-xs text-[#6B6F76]">{fmtDateTime(task.completed_at)}</span></div>
+                      <div className="hidden sm:block w-40 border-r border-[#E8E8E9] pl-3"><span className="text-xs text-[#6B6F76]">{fmtDateTime(task.completed_at)}</span></div>
                     )}
-                    <div className="w-8" />
+                    <div className="w-8 hidden sm:block" />
                   </div>
                 );
               })}
 
               {/* Inline add task */}
               {!collapsed && addingIn === section.id ? (
-                <div className="flex items-center px-6 py-2 border-b border-[#E8E8E9] bg-white gap-2">
+                <div className="flex items-center px-3 sm:px-6 py-2 border-b border-[#E8E8E9] bg-white gap-2">
                   <div className="w-4 h-4 rounded-full border border-[#B0B3B8] flex-shrink-0" />
                   <div
                     className="flex-1 flex items-center cursor-pointer"
@@ -909,7 +904,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                 </div>
               ) : !collapsed ? (
                 <div
-                  className="flex items-center px-6 py-2 border-b border-[#E8E8E9] cursor-pointer hover:bg-[#F5F5F5] group/add"
+                  className="flex items-center px-3 sm:px-6 py-2 border-b border-[#E8E8E9] cursor-pointer hover:bg-[#F5F5F5] group/add"
                   onClick={() => setAddingIn(section.id)}
                 >
                   <div className="w-4 h-4 rounded-full border border-[#E8E8E9] mr-2 flex-shrink-0 group-hover/add:border-[#4573D9]" />
