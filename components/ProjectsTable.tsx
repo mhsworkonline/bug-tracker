@@ -78,11 +78,12 @@ export default function ProjectsTable({ projects, isAdmin }: Props) {
     <div className="border border-[#E8E8E9] rounded-[6px] overflow-hidden">
       <div className="flex items-center px-4 py-2.5 bg-[#FAFBFC] border-b border-[#E8E8E9]">
         <div className="flex-1 text-xs font-medium text-[#6B6F76]">Name</div>
-        <div className="w-32 text-xs font-medium text-[#6B6F76]">Members</div>
-        <div className="w-32 text-xs font-medium text-[#6B6F76]">Portfolios</div>
-        <div className="w-44 flex items-center justify-end gap-1 text-xs font-medium text-[#6B6F76]">
+        <div className="hidden sm:block w-32 text-xs font-medium text-[#6B6F76]">Members</div>
+        <div className="hidden sm:block w-32 text-xs font-medium text-[#6B6F76]">Portfolios</div>
+        <div className="hidden sm:flex w-44 items-center justify-end gap-1 text-xs font-medium text-[#6B6F76]">
           Last modified <ArrowUpDown size={12} />
         </div>
+        <div className="w-8" />
       </div>
 
       {projects.map((p, i) => (
@@ -92,17 +93,17 @@ export default function ProjectsTable({ projects, isAdmin }: Props) {
             i < projects.length - 1 ? "border-b border-[#E8E8E9]" : ""
           } ${!p.is_active ? "opacity-60" : ""}`}
         >
-          <div className="flex-1 flex items-center gap-3">
+          <div className="flex-1 flex items-center gap-3 min-w-0">
             <div
               className="w-8 h-8 rounded-[6px] flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
               style={{ backgroundColor: p.icon_bg }}
             >
               {p.name[0]}
             </div>
-            <div>
+            <div className="min-w-0">
               <Link
                 href={`/projects/${p.id}`}
-                className="text-sm font-semibold text-[#151B26] hover:underline"
+                className="text-sm font-semibold text-[#151B26] hover:underline truncate block"
               >
                 {p.name}
               </Link>
@@ -112,16 +113,18 @@ export default function ProjectsTable({ projects, isAdmin }: Props) {
             </div>
           </div>
 
-          <div className="w-32 flex items-center gap-1.5">
+          <div className="hidden sm:flex w-32 items-center gap-1.5">
             <div className="w-6 h-6 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold">
               MH
             </div>
-            {isAdmin && <RowMenu project={p} />}
           </div>
 
-          <div className="w-32 text-sm text-[#6B6F76]">—</div>
-          <div className="w-44 text-right text-sm text-[#6B6F76]">
+          <div className="hidden sm:block w-32 text-sm text-[#6B6F76]">—</div>
+          <div className="hidden sm:block w-44 text-right text-sm text-[#6B6F76]">
             {new Date(p.updated_at ?? p.created_at).toLocaleDateString()}
+          </div>
+          <div className="w-8 flex justify-end">
+            {isAdmin && <RowMenu project={p} />}
           </div>
         </div>
       ))}

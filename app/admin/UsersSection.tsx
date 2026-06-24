@@ -51,10 +51,10 @@ export default function UsersSection() {
       <h2 className="text-base font-semibold text-[#151B26] mb-4">Users</h2>
 
       {/* Create user */}
-      <div className="flex gap-2 mb-4">
+      <div className="flex flex-col sm:flex-row gap-2 mb-4">
         <input value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="Email" className="flex-1 border border-[#E8E8E9] rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#4573D9]" />
         <input value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Password" type="password" className="flex-1 border border-[#E8E8E9] rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#4573D9]" />
-        <button onClick={create} disabled={!newEmail || !newPassword || creating} className="px-3 py-1.5 bg-[#4573D9] text-white text-sm rounded-lg hover:bg-[#3F65C4] disabled:opacity-50 flex items-center gap-1">
+        <button onClick={create} disabled={!newEmail || !newPassword || creating} className="px-3 py-1.5 bg-[#4573D9] text-white text-sm rounded-lg hover:bg-[#3F65C4] disabled:opacity-50 flex items-center justify-center gap-1">
           {creating ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Create
         </button>
       </div>

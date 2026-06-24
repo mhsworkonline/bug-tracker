@@ -8,23 +8,13 @@ function run(cmd) {
   execSync(cmd, { stdio: "inherit" });
 }
 
-require("dotenv").config({ path: ".env.local" });
-const VERCEL_TOKEN = process.env.VERCEL_TOKEN;
-const VERCEL_SCOPE = process.env.VERCEL_SCOPE || "mhsw-ork";
-
-if (!VERCEL_TOKEN) {
-  console.error("Missing VERCEL_TOKEN in .env.local");
-  process.exit(1);
-}
-
 if (command === "pull") {
   run("git pull origin main");
   run("npm install");
 } else {
-  const msg = args.join(" ") || "update";
+  const msg = args.slice(1).join(" ") || args[0] || "update";
   run("git add -A");
   try { run(`git commit -m "${msg}"`); } catch { console.log("Nothing to commit, skipping."); }
   run("git push origin main");
-  console.log("\nDeploying to Vercel...");
-  run(`npx vercel deploy --token ${VERCEL_TOKEN} --scope ${VERCEL_SCOPE} --prod --yes`);
+  console.log("\nPushed. Vercel will auto-deploy from GitHub.");
 }

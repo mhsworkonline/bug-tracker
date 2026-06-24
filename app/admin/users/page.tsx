@@ -111,7 +111,7 @@ export default function UsersPage() {
 
   return (
     <div className="min-h-screen bg-[#FAFBFC]">
-      <div className="bg-white border-b border-[#E8E8E9] px-8 py-4 flex items-center gap-3">
+      <div className="bg-white border-b border-[#E8E8E9] px-4 sm:px-8 py-4 flex items-center gap-3">
         <Link href="/projects" className="p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><ChevronLeft size={18} /></Link>
         <Users size={18} className="text-[#6B6F76]" />
         <h1 className="text-lg font-semibold text-[#151B26]">User Management</h1>
@@ -120,12 +120,12 @@ export default function UsersPage() {
       {loading ? (
         <div className="flex items-center justify-center py-20 gap-2 text-[#6B6F76] text-sm"><Loader2 size={16} className="animate-spin" /> Loading…</div>
       ) : (
-        <div className="max-w-4xl mx-auto px-8 py-8 flex flex-col gap-6">
+        <div className="max-w-4xl mx-auto px-4 sm:px-8 py-6 sm:py-8 flex flex-col gap-6">
 
           {/* Create user */}
-          <section className="bg-white rounded-xl border border-[#E8E8E9] p-6">
+          <section className="bg-white rounded-xl border border-[#E8E8E9] p-4 sm:p-6">
             <h2 className="text-base font-semibold text-[#151B26] mb-4">Create User</h2>
-            <div className="grid grid-cols-2 gap-2 mb-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
               <input value={name} onChange={e => setName(e.target.value)} placeholder="Full name" className="border border-[#E8E8E9] rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#4573D9]" />
               <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" type="email" className="border border-[#E8E8E9] rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#4573D9]" />
               <input value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" type="password" className="border border-[#E8E8E9] rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#4573D9]" />
@@ -137,7 +137,7 @@ export default function UsersPage() {
           </section>
 
           {/* Users list */}
-          <section className="bg-white rounded-xl border border-[#E8E8E9] p-6">
+          <section className="bg-white rounded-xl border border-[#E8E8E9] p-4 sm:p-6">
             <h2 className="text-base font-semibold text-[#151B26] mb-4">Users ({users.length})</h2>
             <div className="flex flex-col divide-y divide-[#F5F5F5]">
               {users.map(u => (
@@ -157,9 +157,9 @@ export default function UsersPage() {
           </section>
 
           {/* Project members */}
-          <section className="bg-white rounded-xl border border-[#E8E8E9] p-6">
+          <section className="bg-white rounded-xl border border-[#E8E8E9] p-4 sm:p-6">
             <h2 className="text-base font-semibold text-[#151B26] mb-4">Project Members</h2>
-            <div className="flex gap-2 mb-4">
+            <div className="flex flex-col sm:flex-row gap-2 mb-4">
               <select value={selProject} onChange={e => setSelProject(e.target.value)} className="flex-1 border border-[#E8E8E9] rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#4573D9]">
                 <option value="">— Project</option>
                 {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -191,7 +191,7 @@ export default function UsersPage() {
       {/* Edit name modal */}
       {nameUserId && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl p-6 w-80">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-[calc(100vw-2rem)] sm:w-80">
             <h3 className="text-sm font-semibold mb-3">Edit Name</h3>
             <input autoFocus value={editName} onChange={e => setEditName(e.target.value)} placeholder="Full name"
               onKeyDown={e => { if (e.key === "Enter") saveName(); if (e.key === "Escape") setNameUserId(null); }}
@@ -209,7 +209,7 @@ export default function UsersPage() {
       {/* Change password modal */}
       {pwUserId && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl p-6 w-80">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-[calc(100vw-2rem)] sm:w-80">
             <h3 className="text-sm font-semibold mb-3">Change Password</h3>
             <input autoFocus value={newPw} onChange={e => setNewPw(e.target.value)} type="password" placeholder="New password"
               className="w-full border border-[#E8E8E9] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#4573D9] mb-3" />
