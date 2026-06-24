@@ -63,6 +63,7 @@ export default function TaskDetailPanel({
   const [showMenu, setShowMenu]           = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDragging, setIsDragging]       = useState(false);
+  const [uploadError, setUploadError]     = useState<string | null>(null);
   const menuRef     = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dueDateRef  = useRef<HTMLInputElement>(null);
@@ -110,40 +111,87 @@ export default function TaskDetailPanel({
     setEditingTitle(false);
   };
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
+  const uploadFiles = async (files: File[]) => {
     if (!files.length) return;
     setUploading(true);
+    setUploadError(null);
     try {
       for (const file of files) {
-        const fd = new FormData();
-        fd.append("file", file);
-        const res = await fetch("/api/upload", { method: "POST", body: fd });
-        if (!res.ok) throw new Error(await res.text());
-        const data = await res.json();
-        await addAttachment(task.id, { name: data.name, url: data.url, file_type: file.type, size: file.size });
+        const presignRes = await fetch("/api/presign", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filename: file.name, content_type: file.type }),
+        });
+        if (!presignRes.ok) throw new Error("Could not get upload config");
+        const cfg = await presignRes.json();
+
+        let url: string;
+
+        if (cfg.provider === "cloudinary") {
+          // Direct browser → Cloudinary (unsigned preset)
+          const fd = new FormData();
+          fd.append("file", file);
+          fd.append("upload_preset", cfg.upload_preset);
+          if (cfg.folder) fd.append("folder", cfg.folder);
+          const res = await fetch(`https://api.cloudinary.com/v1_1/${cfg.cloud_name}/auto/upload`, { method: "POST", body: fd });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error?.message ?? "Cloudinary upload failed");
+          url = data.secure_url;
+
+        } else if (cfg.provider === "cloudinary_signed") {
+          // Direct browser → Cloudinary (signed)
+          const fd = new FormData();
+          fd.append("file", file);
+          fd.append("api_key", cfg.api_key);
+          fd.append("timestamp", String(cfg.timestamp));
+          fd.append("signature", cfg.signature);
+          if (cfg.folder) fd.append("folder", cfg.folder);
+          const res = await fetch(`https://api.cloudinary.com/v1_1/${cfg.cloud_name}/auto/upload`, { method: "POST", body: fd });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error?.message ?? "Cloudinary upload failed");
+          url = data.secure_url;
+
+        } else if (cfg.provider === "cloudflare") {
+          // Direct browser → R2 via presigned PUT
+          const res = await fetch(cfg.upload_url, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+          if (!res.ok) throw new Error("R2 upload failed");
+          url = cfg.public_url;
+
+        } else if (cfg.provider === "supabase") {
+          // Direct browser → Supabase Storage
+          const { supabase } = await import("@/lib/supabase");
+          const ext = file.name.includes(".") ? file.name.split(".").pop() : "";
+          const key = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext ? `.${ext}` : ""}`;
+          const { error } = await supabase.storage.from("bt-attachments").upload(key, file, { contentType: file.type });
+          if (error) throw new Error(error.message);
+          const { data: { publicUrl } } = supabase.storage.from("bt-attachments").getPublicUrl(key);
+          url = publicUrl;
+
+        } else {
+          // local dev — still use the old server route
+          const fd = new FormData();
+          fd.append("file", file);
+          const res = await fetch("/api/upload", { method: "POST", body: fd });
+          if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error ?? "Upload failed"); }
+          const data = await res.json();
+          url = data.url;
+        }
+
+        await addAttachment(task.id, { name: file.name, url, file_type: file.type, size: file.size });
       }
-    } catch (err) { console.error("Upload failed:", err); }
-    finally { setUploading(false); if (fileInputRef.current) fileInputRef.current.value = ""; }
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   };
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => uploadFiles(Array.from(e.target.files ?? []));
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    const files = Array.from(e.dataTransfer.files);
-    if (!files.length) return;
-    setUploading(true);
-    try {
-      for (const file of files) {
-        const fd = new FormData();
-        fd.append("file", file);
-        const res = await fetch("/api/upload", { method: "POST", body: fd });
-        if (!res.ok) throw new Error(await res.text());
-        const data = await res.json();
-        await addAttachment(task.id, { name: data.name, url: data.url, file_type: file.type, size: file.size });
-      }
-    } catch (err) { console.error("Drop upload failed:", err); }
-    finally { setUploading(false); }
+    uploadFiles(Array.from(e.dataTransfer.files));
   };
 
   const copyLink = () => {
@@ -404,7 +452,13 @@ export default function TaskDetailPanel({
                 {uploading ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
               </button>
             </div>
-            <input ref={fileInputRef} type="file" multiple className="sr-only" onChange={handleFileSelect} />
+            <input ref={fileInputRef} type="file" multiple accept="image/*,video/*,application/pdf" className="sr-only" onChange={handleFileSelect} />
+            {uploadError && (
+              <div className="flex items-center justify-between gap-2 px-3 py-2 mb-2 bg-red-50 border border-red-200 rounded text-xs text-red-600">
+                <span>{uploadError}</span>
+                <button onClick={() => setUploadError(null)} className="flex-shrink-0 text-red-400 hover:text-red-600"><X size={12} /></button>
+              </div>
+            )}
             {attachments.length === 0 && !uploading ? (
               <button onClick={() => fileInputRef.current?.click()} className="w-full flex items-center justify-center gap-2 py-4 border-2 border-dashed border-[#E8E8E9] rounded text-sm text-[#6B6F76] hover:border-[#4573D9] hover:text-[#4573D9] transition-colors">
                 <Paperclip size={14} /> Click, drag & drop, or paste (Ctrl+V)
