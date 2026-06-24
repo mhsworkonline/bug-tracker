@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Eye, EyeOff, Check, Loader2, FlaskConical, XCircle } from "lucide-react";
 import { useAdminSettings } from "@/lib/adminSettingsContext";
 import type { StorageConfig } from "@/lib/adminSettings";
@@ -51,6 +51,10 @@ export default function StorageSection() {
   const { storageConfig, saveStorageConfig } = useAdminSettings();
   const [draft, setDraft]   = useState<StorageConfig>({ ...storageConfig });
   const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  // Sync when storageConfig loads from Supabase (async after mount)
+  useEffect(() => { setDraft({ ...storageConfig }); setLoaded(true); }, [storageConfig]);
   const [saved, setSaved]   = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; error?: string; url?: string } | null>(null);
@@ -174,7 +178,7 @@ export default function StorageSection() {
           {testing ? <Loader2 size={14} className="animate-spin" /> : <FlaskConical size={14} />}
           {testing ? "Testing…" : "Test connection"}
         </button>
-        <button onClick={save} disabled={saving || testing}
+        <button onClick={save} disabled={saving || testing || !loaded}
           className="flex items-center gap-2 px-4 py-1.5 bg-[#4573D9] text-white text-sm rounded-md hover:bg-[#3F65C4] disabled:opacity-60"
         >
           {saving ? <Loader2 size={14} className="animate-spin" /> : saved ? <Check size={14} /> : null}

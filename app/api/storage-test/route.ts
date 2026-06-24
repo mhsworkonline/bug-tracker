@@ -94,7 +94,7 @@ export async function POST() {
       }
 
       if (resolvedCdn.upload_preset) {
-        // Unsigned upload test
+        // Unsigned upload — browser-compatible path, test it works end-to-end
         const fd = new FormData();
         fd.append("file", new Blob([TEST_CONTENT], { type: "text/plain" }), TEST_FILENAME);
         fd.append("upload_preset", resolvedCdn.upload_preset);
@@ -104,17 +104,7 @@ export async function POST() {
         if (!res.ok) return NextResponse.json({ ok: false, error: data.error?.message ?? "Cloudinary upload failed" });
         return NextResponse.json({ ok: true, provider: "cloudinary", url: data.secure_url });
       } else {
-        // Signed upload test
-        const { v2: cloudinary } = await import("cloudinary");
-        cloudinary.config({ cloud_name: resolvedCdn.cloud_name, api_key: resolvedCdn.api_key, api_secret: resolvedCdn.api_secret });
-        const result = await new Promise<{ secure_url: string }>((resolve, reject) => {
-          const opts: Record<string, string> = { resource_type: "raw" };
-          if (resolvedCdn.folder) opts.folder = resolvedCdn.folder;
-          cloudinary.uploader.upload_stream(opts, (err, res) => {
-            if (err || !res) reject(err ?? new Error("No response")); else resolve(res as { secure_url: string });
-          }).end(Buffer.from(TEST_CONTENT));
-        });
-        return NextResponse.json({ ok: true, provider: "cloudinary", url: result.secure_url });
+        return NextResponse.json({ ok: false, error: "Upload Preset is required for direct browser uploads. Create an unsigned upload preset in your Cloudinary dashboard and enter it here." });
       }
     }
 
@@ -142,6 +132,11 @@ export async function POST() {
 
     return NextResponse.json({ ok: false, error: "Unknown provider" });
   } catch (err) {
-    return NextResponse.json({ ok: false, error: err instanceof Error ? err.message : "Unexpected error" });
+    const msg = err instanceof Error
+      ? err.message
+      : typeof err === "object" && err !== null
+        ? JSON.stringify(err)
+        : String(err);
+    return NextResponse.json({ ok: false, error: msg });
   }
 }

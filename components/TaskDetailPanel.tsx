@@ -113,19 +113,6 @@ export default function TaskDetailPanel({
           if (!res.ok) throw new Error(data.error?.message ?? "Cloudinary upload failed");
           url = data.secure_url;
 
-        } else if (cfg.provider === "cloudinary_signed") {
-          // Direct browser → Cloudinary (signed)
-          const fd = new FormData();
-          fd.append("file", file);
-          fd.append("api_key", cfg.api_key);
-          fd.append("timestamp", String(cfg.timestamp));
-          fd.append("signature", cfg.signature);
-          if (cfg.folder) fd.append("folder", cfg.folder);
-          const res = await fetch(`https://api.cloudinary.com/v1_1/${cfg.cloud_name}/auto/upload`, { method: "POST", body: fd });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error?.message ?? "Cloudinary upload failed");
-          url = data.secure_url;
-
         } else if (cfg.provider === "cloudflare") {
           // Direct browser → R2 via presigned PUT
           const res = await fetch(cfg.upload_url, { method: "PUT", body: file, headers: { "Content-Type": file.type } });

@@ -49,21 +49,8 @@ export async function POST(req: NextRequest) {
         folder: cdn.folder ?? "",
       });
     }
-    // Signed upload: generate signature, browser posts with it
-    const { v2: cloudinary } = await import("cloudinary");
-    cloudinary.config({ cloud_name: cdn.cloud_name, api_key: cdn.api_key, api_secret: cdn.api_secret });
-    const timestamp = Math.round(Date.now() / 1000);
-    const params: Record<string, string | number> = { timestamp };
-    if (cdn.folder) params.folder = cdn.folder;
-    const signature = cloudinary.utils.api_sign_request(params, cdn.api_secret!);
-    return NextResponse.json({
-      provider: "cloudinary_signed",
-      cloud_name: cdn.cloud_name,
-      api_key: cdn.api_key,
-      timestamp,
-      signature,
-      folder: cdn.folder ?? "",
-    });
+    // No upload preset — cannot do direct browser upload
+    return NextResponse.json({ error: "Cloudinary upload preset is not configured. Go to Admin → Storage, add your unsigned Upload Preset, and save." }, { status: 400 });
   }
 
   if (config.provider === "cloudflare") {
