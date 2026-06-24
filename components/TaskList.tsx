@@ -574,8 +574,8 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                 <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-0.5 cursor-pointer py-0.5 pl-0 pr-1" onClick={() => { setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }}>
                   {editingTaskId === task.id ? (
                     <input autoFocus value={editingTaskName} onChange={e => setEditingTaskName(e.target.value)}
-                      onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") { e.stopPropagation(); updateTask(task.id, { name: editingTaskName.trim() || task.name }); setEditingTaskId(null); }}}
-                      onBlur={() => { updateTask(task.id, { name: editingTaskName.trim() || task.name }); setEditingTaskId(null); }}
+                      onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") { e.stopPropagation(); if (!editingTaskName.trim() && !task.description && !(task.BT_attachments?.length)) { deleteTask(task.id); } else { updateTask(task.id, { name: editingTaskName.trim() || task.name }); } setEditingTaskId(null); }}}
+                      onBlur={() => { if (!editingTaskName.trim() && !task.description && !(task.BT_attachments?.length)) { deleteTask(task.id); } else { updateTask(task.id, { name: editingTaskName.trim() || task.name }); } setEditingTaskId(null); }}
                       className="flex-1 outline-none bg-transparent border-b border-[#4573D9] text-[#151B26]" onClick={e => e.stopPropagation()} />
                   ) : (
                     <>
@@ -760,9 +760,9 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                             value={editingTaskName}
                             onChange={e => setEditingTaskName(e.target.value)}
                             onKeyDown={e => {
-                              if (e.key === "Enter" || e.key === "Escape") { e.stopPropagation(); updateTask(task.id, { name: editingTaskName.trim() || task.name }); setEditingTaskId(null); }
+                              if (e.key === "Enter" || e.key === "Escape") { e.stopPropagation(); if (!editingTaskName.trim() && !task.description && !(task.BT_attachments?.length)) { deleteTask(task.id); } else { updateTask(task.id, { name: editingTaskName.trim() || task.name }); } setEditingTaskId(null); }
                             }}
-                            onBlur={() => { updateTask(task.id, { name: editingTaskName.trim() || task.name }); setEditingTaskId(null); }}
+                            onBlur={() => { if (!editingTaskName.trim() && !task.description && !(task.BT_attachments?.length)) { deleteTask(task.id); } else { updateTask(task.id, { name: editingTaskName.trim() || task.name }); } setEditingTaskId(null); }}
                             className="flex-1 outline-none bg-transparent border-b border-[#4573D9] text-[#151B26]"
                             onClick={e => e.stopPropagation()}
                           />

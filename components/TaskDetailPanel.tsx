@@ -79,31 +79,6 @@ export default function TaskDetailPanel({
     return () => document.removeEventListener("mousedown", h);
   }, [showMenu]);
 
-  useEffect(() => {
-    const handler = async (e: ClipboardEvent) => {
-      const items = Array.from(e.clipboardData?.items ?? []).filter(i => i.type.startsWith("image/"));
-      if (!items.length) return;
-      e.preventDefault();
-      setUploading(true);
-      try {
-        for (const item of items) {
-          const blob = item.getAsFile();
-          if (!blob) continue;
-          const filename = `screenshot-${Date.now()}.png`;
-          const file = new File([blob], filename, { type: blob.type });
-          const fd = new FormData();
-          fd.append("file", file);
-          const res = await fetch("/api/upload", { method: "POST", body: fd });
-          if (!res.ok) throw new Error(await res.text());
-          const data = await res.json();
-          await addAttachment(task.id, { name: filename, url: data.url, file_type: file.type, size: file.size });
-        }
-      } catch (err) { console.error("Screenshot upload failed:", err); }
-      finally { setUploading(false); }
-    };
-    window.addEventListener("paste", handler);
-    return () => window.removeEventListener("paste", handler);
-  }, [task.id, addAttachment]);
 
   const saveTitle = () => {
     const v = titleDraft.trim();
@@ -187,6 +162,25 @@ export default function TaskDetailPanel({
     }
   };
 
+  const uploadFilesRef = useRef(uploadFiles);
+  useEffect(() => { uploadFilesRef.current = uploadFiles; });
+
+  useEffect(() => {
+    const handler = async (e: ClipboardEvent) => {
+      const items = Array.from(e.clipboardData?.items ?? []).filter(i => i.type.startsWith("image/"));
+      if (!items.length) return;
+      e.preventDefault();
+      const files = items.flatMap(item => {
+        const blob = item.getAsFile();
+        if (!blob) return [];
+        return [new File([blob], `screenshot-${Date.now()}.png`, { type: blob.type })];
+      });
+      if (files.length) await uploadFilesRef.current(files);
+    };
+    window.addEventListener("paste", handler);
+    return () => window.removeEventListener("paste", handler);
+  }, []);
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => uploadFiles(Array.from(e.target.files ?? []));
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
@@ -204,13 +198,38 @@ export default function TaskDetailPanel({
   const section     = sections.find((s) => s.id === task.section_id);
   const attachments = task.BT_attachments ?? [];
 
+  // Commit saves unsaved title; deletes task if truly empty. Used on every exit path.
+  const commitOrDelete = () => {
+    const name = titleDraft.trim();
+    if (name && name !== task.name) updateTask(task.id, { name });
+    if (!name && !task.description?.trim() && attachments.length === 0) deleteTask(task.id);
+  };
+
+  const handleClose    = () => { commitOrDelete(); onClose(); };
+  const handleNavigate = (targetId: string) => { commitOrDelete(); onOpenTask(targetId); };
+
+  // Capture-phase ESC listener — fires before TaskList's bubble-phase window handler.
+  // Stops propagation so TaskList never sees the event.
+  const escRef = useRef<(e: KeyboardEvent) => void>(() => {});
+  escRef.current = (e: KeyboardEvent) => {
+    if (e.key !== "Escape") return;
+    e.stopPropagation();
+    commitOrDelete();
+    onClose();
+  };
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => escRef.current(e);
+    document.addEventListener("keydown", h, true);
+    return () => document.removeEventListener("keydown", h, true);
+  }, []);
+
   const panelClass = fullscreen
     ? "fixed inset-0 bg-white z-50 flex flex-col overflow-hidden"
     : "fixed right-0 top-0 h-full w-full sm:w-[45%] bg-white z-50 shadow-xl flex flex-col overflow-hidden";
 
   return (
     <>
-      {!fullscreen && <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose} />}
+      {!fullscreen && <div className="fixed inset-0 bg-black/20 z-40" onClick={handleClose} />}
       <div className={panelClass}>
 
         {/* Top bar */}
@@ -233,7 +252,7 @@ export default function TaskDetailPanel({
               <button
                 title="Previous task"
                 disabled={!prevTask}
-                onClick={() => prevTask && onOpenTask(prevTask.id)}
+                onClick={() => prevTask && handleNavigate(prevTask.id)}
                 className="p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] disabled:opacity-30 disabled:cursor-not-allowed border-r border-[#E8E8E9]"
               >
                 <ChevronUp size={15} />
@@ -241,7 +260,7 @@ export default function TaskDetailPanel({
               <button
                 title="Next task"
                 disabled={!nextTask}
-                onClick={() => nextTask && onOpenTask(nextTask.id)}
+                onClick={() => nextTask && handleNavigate(nextTask.id)}
                 className="p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 <ChevronDown size={15} />
@@ -282,7 +301,7 @@ export default function TaskDetailPanel({
                 </div>
               )}
             </div>
-            <button title="Close" onClick={onClose} className="p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><X size={15} /></button>
+            <button title="Close" onClick={handleClose} className="p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><X size={15} /></button>
           </div>
         </div>
 
@@ -325,7 +344,7 @@ export default function TaskDetailPanel({
               }}
               onFocus={e => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
               onBlur={saveTitle}
-              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); saveTitle(); } if (e.key === "Escape") setEditingTitle(false); }}
+              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); saveTitle(); } }}
               className="w-full text-2xl font-bold text-[#151B26] outline-none border-b-2 border-[#4573D9] mb-4 bg-transparent resize-none overflow-hidden leading-tight"
             />
           ) : (
