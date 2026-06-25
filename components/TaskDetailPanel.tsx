@@ -410,7 +410,7 @@ export default function TaskDetailPanel({
               </button>
             </div>
             <button
-              onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/projects/${task.project_id}?task=${task.id}`); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); }}
+              onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/projects/${task.project_id}/tasks/${task.id}`); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); }}
               className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-[#4573D9] text-white text-sm rounded-md hover:bg-[#3F65C4]"
             >
               <Share2 size={13} /> {linkCopied ? "Copied!" : "Share"}
