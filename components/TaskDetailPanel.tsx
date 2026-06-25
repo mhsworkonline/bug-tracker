@@ -290,12 +290,12 @@ export default function TaskDetailPanel({
                 <Plus size={13} strokeWidth={2.5} />
               </button>
             </div>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 bg-[#4573D9] text-white text-sm rounded-md hover:bg-[#3F65C4]">
+            <button className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-[#4573D9] text-white text-sm rounded-md hover:bg-[#3F65C4]">
               <Share2 size={13} /> Share
             </button>
-            <button title="Like" className="p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><ThumbsUp size={15} /></button>
-            <button title="Copy link" onClick={copyLink} className="p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><Link2 size={15} /></button>
-            <button title={fullscreen ? "Exit full screen" : "Full screen"} onClick={() => setFullscreen(v => !v)} className="p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><Maximize2 size={15} /></button>
+            <button title="Like" className="hidden sm:flex p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><ThumbsUp size={15} /></button>
+            <button title="Copy link" onClick={copyLink} className="hidden sm:flex p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><Link2 size={15} /></button>
+            <button title={fullscreen ? "Exit full screen" : "Full screen"} onClick={() => setFullscreen(v => !v)} className="hidden sm:flex p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><Maximize2 size={15} /></button>
             <div ref={menuRef} className="relative">
               <button onClick={() => setShowMenu(v => !v)} className={`p-1.5 rounded ${showMenu ? "bg-[#F5F5F5]" : "text-[#6B6F76] hover:bg-[#F5F5F5]"}`}>
                 <MoreHorizontal size={15} />
@@ -368,25 +368,25 @@ export default function TaskDetailPanel({
           )}
 
 
-          <div className="flex items-center gap-4 mb-4">
-            <span className="w-24 text-sm text-[#6B6F76] font-medium flex-shrink-0">Section</span>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mb-4">
+            <span className="w-24 text-xs sm:text-sm text-[#6B6F76] font-medium flex-shrink-0">Section</span>
             <select
               value={task.section_id ?? ""}
               onChange={e => updateTask(task.id, { section_id: e.target.value || null })}
-              className="text-sm text-[#151B26] border border-[#E8E8E9] rounded px-2 py-1 outline-none hover:border-[#4573D9] focus:border-[#4573D9] bg-white"
+              className="text-sm text-[#151B26] border border-[#E8E8E9] rounded px-2 py-1.5 outline-none hover:border-[#4573D9] focus:border-[#4573D9] bg-white w-full sm:w-auto"
             >
               <option value="">— No section</option>
               {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
 
-          <div className="flex items-center gap-4 mb-4">
-            <span className="w-24 text-sm text-[#6B6F76] font-medium flex-shrink-0">Status</span>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mb-4">
+            <span className="w-24 text-xs sm:text-sm text-[#6B6F76] font-medium flex-shrink-0">Status</span>
             <StatusBadge value={task.status} onChange={v => updateTask(task.id, { status: v })} />
           </div>
 
-          <div className="flex items-center gap-4 mb-4">
-            <span className="w-24 text-sm text-[#6B6F76] font-medium flex-shrink-0">Priority</span>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mb-4">
+            <span className="w-24 text-xs sm:text-sm text-[#6B6F76] font-medium flex-shrink-0">Priority</span>
             <PriorityBadge
               value={task.priority ?? "high"}
               onChange={v => updateTask(task.id, { priority: v })}
@@ -394,14 +394,14 @@ export default function TaskDetailPanel({
             />
           </div>
 
-          <div className="flex items-center gap-4 mb-4">
-            <span className="w-24 text-sm text-[#6B6F76] font-medium flex-shrink-0">Task Type</span>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mb-4">
+            <span className="w-24 text-xs sm:text-sm text-[#6B6F76] font-medium flex-shrink-0">Task Type</span>
             <TaskTypeBadge value={task.task_type ?? "bug"} onChange={v => updateTask(task.id, { task_type: v })} />
           </div>
 
-          <div className="flex items-center gap-4 mb-4">
-            <span className="w-24 text-sm text-[#6B6F76] font-medium flex-shrink-0">Assignee</span>
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mb-4">
+            <span className="w-24 text-xs sm:text-sm text-[#6B6F76] font-medium flex-shrink-0">Assignee</span>
+            <div className="flex items-center gap-2 flex-wrap">
             <select
               value={task.assignee ?? ""}
               onChange={async e => {
@@ -415,7 +415,7 @@ export default function TaskDetailPanel({
                   updateTask(task.id, { assignee: email });
                 }
               }}
-              className="text-sm text-[#151B26] border-0 outline-none bg-transparent cursor-pointer hover:bg-[#FAFBFC] px-2 py-1 rounded"
+              className="text-sm text-[#151B26] border border-[#E8E8E9] rounded px-2 py-1.5 outline-none bg-white cursor-pointer hover:border-[#4573D9] w-full sm:w-auto"
             >
               <option value="">No assignee</option>
               {members.map(m => <option key={m.id} value={m.email}>{m.name ?? m.email}</option>)}
@@ -424,8 +424,8 @@ export default function TaskDetailPanel({
             </div>
           </div>
 
-          <div className="flex items-center gap-4 mb-6">
-            <span className="w-24 text-sm text-[#6B6F76] font-medium flex-shrink-0">Due date</span>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mb-6">
+            <span className="w-24 text-xs sm:text-sm text-[#6B6F76] font-medium flex-shrink-0">Due date</span>
             <button
               onClick={() => { dueDateRef.current?.showPicker?.(); dueDateRef.current?.click(); }}
               className="flex items-center gap-2 text-sm text-[#6B6F76] hover:bg-[#FAFBFC] px-2 py-1 rounded"

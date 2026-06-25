@@ -30,7 +30,7 @@ function MaskedInput({ value, onChange, placeholder, isSecret = false }: {
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-[120px_1fr] items-center gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-[120px_1fr] items-start sm:items-center gap-1 sm:gap-3">
       <div>
         <p className="text-sm text-[#6B6F76]">{label}</p>
         {hint && <p className="text-[10px] text-[#9EA3AA]">{hint}</p>}

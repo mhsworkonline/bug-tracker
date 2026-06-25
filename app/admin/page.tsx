@@ -200,7 +200,7 @@ export default function AdminDashboard() {
                 {data.statusBreakdown.length === 0 ? (
                   <p className="text-sm text-[#6B6F76] text-center py-6">No tasks yet</p>
                 ) : (
-                  <div className="flex items-center gap-4">
+                  <div className="flex flex-wrap items-center gap-4">
                     <ResponsiveContainer width={120} height={120}>
                       <PieChart>
                         <Pie data={data.statusBreakdown} cx="50%" cy="50%" innerRadius={32} outerRadius={52} dataKey="value" strokeWidth={0}>
@@ -230,7 +230,7 @@ export default function AdminDashboard() {
                   <p className="text-sm text-[#6B6F76] text-center py-6">No projects yet</p>
                 ) : (
                   <ResponsiveContainer width="100%" height={140}>
-                    <BarChart data={data.tasksByProject} barSize={16} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                    <BarChart data={data.tasksByProject} barSize={16} margin={{ top: 0, right: 0, left: -10, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#F0F1F3" vertical={false} />
                       <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#6B6F76" }} axisLine={false} tickLine={false} />
                       <YAxis tick={{ fontSize: 10, fill: "#6B6F76" }} axisLine={false} tickLine={false} allowDecimals={false} />
@@ -246,7 +246,7 @@ export default function AdminDashboard() {
             <div className="bg-white border border-[#E8E8E9] rounded-xl p-5">
               <h2 className="text-sm font-semibold text-[#151B26] mb-4">Activity — last 7 days</h2>
               <ResponsiveContainer width="100%" height={120}>
-                <LineChart data={data.activityByDay} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                <LineChart data={data.activityByDay} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F0F1F3" vertical={false} />
                   <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#6B6F76" }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 11, fill: "#6B6F76" }} axisLine={false} tickLine={false} allowDecimals={false} />
