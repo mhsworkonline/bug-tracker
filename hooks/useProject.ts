@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
+import { logActivity } from "@/lib/logActivity";
 import type {
   Project, Section, Task, Attachment,
   ColumnConfig, ColumnKey, TaskStatus, TaskPriority, DEFAULT_COLUMNS,
@@ -31,7 +32,7 @@ export interface ProjectData {
   updateColumnConfig: (key: ColumnKey, visible: boolean) => Promise<void>;
 }
 
-export function useProject(projectId: string): ProjectData {
+export function useProject(projectId: string, userEmail?: string): ProjectData {
   const [project, setProject]           = useState<Project | null>(null);
   const [sections, setSections]         = useState<Section[]>([]);
   const [tasks, setTasks]               = useState<Task[]>([]);
@@ -92,8 +93,9 @@ export function useProject(projectId: string): ProjectData {
       .single();
     if (error || !data) return null;
     setSections(prev => [...prev, data]);
+    logActivity(projectId, "section_created", { section_name: name }, undefined, userEmail);
     return data;
-  }, [projectId, sections.length]);
+  }, [projectId, sections.length, userEmail]);
 
   const updateSection = useCallback(async (id: string, name: string) => {
     setSections(prev => prev.map(s => s.id === id ? { ...s, name } : s));
@@ -101,11 +103,13 @@ export function useProject(projectId: string): ProjectData {
   }, []);
 
   const deleteSection = useCallback(async (id: string) => {
+    const sec = sections.find(s => s.id === id);
     setSections(prev => prev.filter(s => s.id !== id));
     setTasks(prev => prev.map(t => t.section_id === id ? { ...t, section_id: null } : t));
     await supabase.from("BT_tasks").update({ section_id: null }).eq("section_id", id);
     await supabase.from("BT_sections").delete().eq("id", id);
-  }, []);
+    logActivity(projectId, "section_deleted", { section_name: sec?.name }, undefined, userEmail);
+  }, [sections, projectId, userEmail]);
 
   const duplicateSection = useCallback(async (id: string): Promise<void> => {
     const src = sections.find(s => s.id === id);
@@ -136,8 +140,9 @@ export function useProject(projectId: string): ProjectData {
       .single();
     if (error || !data) return null;
     setTasks(prev => [...prev, data]);
+    logActivity(projectId, "task_created", { task_name: name }, data.id, userEmail);
     return data;
-  }, [projectId, tasks]);
+  }, [projectId, tasks, userEmail]);
 
   const duplicateTask = useCallback(async (taskId: string): Promise<Task | null> => {
     const src = tasks.find(t => t.id === taskId);
@@ -169,11 +174,29 @@ export function useProject(projectId: string): ProjectData {
     taskId: string,
     updates: Partial<Omit<Task, "id" | "project_id" | "created_at">>
   ) => {
+    const task = tasks.find(t => t.id === taskId);
     const now = new Date().toISOString();
     const payload = { ...updates, updated_at: now };
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...payload } : t));
     await supabase.from("BT_tasks").update(payload).eq("id", taskId);
-  }, []);
+    if (task) {
+      const name = task.name;
+      if (updates.status !== undefined && updates.status !== task.status)
+        logActivity(projectId, "task_status_changed", { task_name: name, from: task.status, to: updates.status }, taskId, userEmail);
+      if (updates.assignee !== undefined && updates.assignee !== task.assignee)
+        logActivity(projectId, "task_assignee_changed", { task_name: name, from: task.assignee ?? "", to: updates.assignee ?? "" }, taskId, userEmail);
+      if (updates.priority !== undefined && updates.priority !== task.priority)
+        logActivity(projectId, "task_priority_changed", { task_name: name, from: task.priority ?? "", to: updates.priority ?? "" }, taskId, userEmail);
+      if (updates.name !== undefined && updates.name !== task.name)
+        logActivity(projectId, "task_name_changed", { task_name: task.name, to: updates.name }, taskId, userEmail);
+      if (updates.due_date !== undefined && updates.due_date !== task.due_date)
+        logActivity(projectId, "task_due_date_changed", { task_name: name, from: task.due_date ?? "", to: updates.due_date ?? "" }, taskId, userEmail);
+      if (updates.task_type !== undefined && updates.task_type !== task.task_type)
+        logActivity(projectId, "task_type_changed", { task_name: name, from: task.task_type ?? "", to: updates.task_type ?? "" }, taskId, userEmail);
+      if (updates.description !== undefined && updates.description !== task.description)
+        logActivity(projectId, "task_description_changed", { task_name: name }, taskId, userEmail);
+    }
+  }, [tasks, projectId, userEmail]);
 
   const toggleTask = useCallback(async (taskId: string) => {
     const task = tasks.find(t => t.id === taskId);
@@ -192,7 +215,6 @@ export function useProject(projectId: string): ProjectData {
 
   const deleteTask = useCallback(async (taskId: string) => {
     const task = tasks.find(t => t.id === taskId);
-    // Fire-and-forget storage cleanup — don't block DB delete on failures
     if (task?.BT_attachments?.length) {
       Promise.allSettled(
         task.BT_attachments.map(att =>
@@ -206,7 +228,8 @@ export function useProject(projectId: string): ProjectData {
     }
     setTasks(prev => prev.filter(t => t.id !== taskId));
     await supabase.from("BT_tasks").delete().eq("id", taskId);
-  }, [tasks]);
+    if (task) logActivity(projectId, "task_deleted", { task_name: task.name }, taskId, userEmail);
+  }, [tasks, projectId, userEmail]);
 
   /* ── attachments ── */
   const addAttachment = useCallback(async (

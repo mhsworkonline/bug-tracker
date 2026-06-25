@@ -33,6 +33,20 @@ interface Props {
   isAdmin?: boolean;
 }
 
+function formatActivityLog(log: { action: string; meta: Record<string, string> }): string {
+  const m = log.meta;
+  switch (log.action) {
+    case "task_status_changed":      return `changed status from "${m.from}" to "${m.to}"`;
+    case "task_assignee_changed":    return `changed assignee to ${m.to || "unassigned"}`;
+    case "task_priority_changed":    return `changed priority from "${m.from}" to "${m.to}"`;
+    case "task_name_changed":        return `renamed task to "${m.to}"`;
+    case "task_due_date_changed":    return `changed due date from ${m.from || "none"} to ${m.to || "none"}`;
+    case "task_type_changed":        return `changed type from "${m.from}" to "${m.to}"`;
+    case "task_description_changed": return `updated the description`;
+    default:                         return log.action.replace(/_/g, " ");
+  }
+}
+
 function fmtBytes(n: number) {
   if (n < 1024) return `${n} B`;
   if (n < 1048576) return `${(n / 1024).toFixed(1)} KB`;
@@ -64,9 +78,19 @@ export default function TaskDetailPanel({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDragging, setIsDragging]       = useState(false);
   const [uploadError, setUploadError]     = useState<string | null>(null);
+  const [activeTab, setActiveTab]         = useState<"activity" | "comments">("activity");
+  const [activityLogs, setActivityLogs]   = useState<{ id: string; action: string; meta: Record<string, string>; user_email: string | null; created_at: string }[]>([]);
+  const [activityOrder, setActivityOrder] = useState<"asc" | "desc">("asc");
   const menuRef     = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dueDateRef  = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    import("@/lib/supabase").then(({ supabase }) => {
+      supabase.from("BT_activity_logs").select("*").eq("task_id", task.id).order("created_at", { ascending: true })
+        .then(({ data }) => setActivityLogs((data as typeof activityLogs) ?? []));
+    });
+  }, [task.id]);
 
   useEffect(() => {
     fetch(`/api/projects/${projectId}/members`).then(r => r.json()).then(d => setMembers(d.members ?? []));
@@ -511,22 +535,69 @@ export default function TaskDetailPanel({
           <div className="border-t border-[#E8E8E9] pt-4">
             <div className="flex items-center justify-between mb-4">
               <div className="flex gap-4">
-                <button className="text-sm font-medium text-[#151B26] border-b-2 border-[#4573D9] pb-1">Comments</button>
-                <button className="text-sm text-[#6B6F76] hover:text-[#151B26] pb-1">All activity</button>
+                {(["activity", "comments"] as const).map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`text-sm pb-1 capitalize ${activeTab === tab ? "font-medium text-[#151B26] border-b-2 border-[#4573D9]" : "text-[#6B6F76] hover:text-[#151B26]"}`}
+                  >
+                    {tab === "activity" ? "All activity" : "Comments"}
+                  </button>
+                ))}
               </div>
-              <button className="text-sm text-[#6B6F76]">↑↓ Oldest</button>
+              {activeTab === "activity" && activityLogs.length > 0 && (
+                <button
+                  onClick={() => setActivityOrder(o => o === "asc" ? "desc" : "asc")}
+                  className="text-xs text-[#6B6F76] hover:text-[#151B26]"
+                >
+                  ↑↓ {activityOrder === "asc" ? "Oldest" : "Newest"}
+                </button>
+              )}
             </div>
-            <div className="flex items-start gap-2">
-              <div className="w-7 h-7 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">MH</div>
-              <p className="text-sm text-[#6B6F76]">
-                <span className="font-medium text-[#151B26]">MHS</span> created this task · {new Date(task.created_at).toLocaleString()}
-              </p>
-            </div>
+
+            {activeTab === "activity" && (
+              <div className="flex flex-col gap-3">
+                {/* Task created entry */}
+                {(() => {
+                  const initials = (task as { created_by?: string }).created_by?.slice(0, 2).toUpperCase() ?? userEmail?.slice(0, 2).toUpperCase() ?? "??";
+                  const createdEntry = { id: "__created__", user_email: userEmail ?? null, created_at: task.created_at, label: "created this task" };
+                  const logs = [...activityLogs];
+                  if (activityOrder === "desc") logs.reverse();
+                  const allEntries = activityOrder === "asc"
+                    ? [createdEntry, ...logs.map(l => ({ ...l, label: formatActivityLog(l) }))]
+                    : [...logs.map(l => ({ ...l, label: formatActivityLog(l) })), createdEntry];
+                  return allEntries.map(entry => {
+                    const ini = entry.user_email?.slice(0, 2).toUpperCase() ?? initials;
+                    return (
+                      <div key={entry.id} className="flex items-start gap-2">
+                        <div className="w-6 h-6 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0 mt-0.5">{ini}</div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm text-[#6B6F76]">
+                            <span className="font-medium text-[#151B26]">{entry.user_email?.split("@")[0] ?? "Unknown"}</span>
+                            {" "}{entry.label}
+                          </span>
+                          <div className="text-xs text-[#B0B3B8] mt-0.5">{new Date(entry.created_at).toLocaleString()}</div>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+                {activityLogs.length === 0 && (
+                  <p className="text-sm text-[#6B6F76]">No activity yet.</p>
+                )}
+              </div>
+            )}
+
+            {activeTab === "comments" && (
+              <p className="text-sm text-[#6B6F76]">Comments coming soon.</p>
+            )}
           </div>
         </div>
 
         <div className="border-t border-[#E8E8E9] p-4 flex items-center gap-2 bg-white flex-shrink-0">
-          <div className="w-7 h-7 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">MH</div>
+          <div className="w-7 h-7 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
+            {userEmail?.slice(0, 2).toUpperCase() ?? "??"}
+          </div>
           <input placeholder="Add a comment" className="flex-1 text-sm border border-[#E8E8E9] rounded-md px-3 py-2 outline-none focus:border-[#4573D9] placeholder-[#6B6F76] text-[#151B26]" />
         </div>
       </div>

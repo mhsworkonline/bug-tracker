@@ -91,7 +91,7 @@ export default function TaskList({ projectId, userEmail }: { projectId: string; 
     addTask, updateTask, toggleTask, duplicateTask, deleteTask,
     addAttachment, removeAttachment,
     updateColumnConfig,
-  } = useProject(projectId);
+  } = useProject(projectId, userEmail);
 
   const { lockPriorities, taskTypes } = useAdminSettings();
   const { updateProject } = useStore();

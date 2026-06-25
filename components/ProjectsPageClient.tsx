@@ -39,9 +39,15 @@ export default function ProjectsPageClient({ isAdmin, userEmail, allowedProjectI
           <div className="flex items-center gap-1 sm:gap-2">
             {userEmail && (
               <div className="flex items-center gap-2 mr-1 sm:mr-2">
-                <div className="w-7 h-7 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
-                  {userEmail.slice(0, 2).toUpperCase()}
-                </div>
+                {isAdmin ? (
+                  <Link href="/admin" className="w-7 h-7 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold flex-shrink-0 hover:opacity-80 transition-opacity" title="Admin dashboard">
+                    {userEmail.slice(0, 2).toUpperCase()}
+                  </Link>
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
+                    {userEmail.slice(0, 2).toUpperCase()}
+                  </div>
+                )}
                 <span className="hidden sm:block text-sm text-[#6B6F76]">{userEmail}</span>
               </div>
             )}
