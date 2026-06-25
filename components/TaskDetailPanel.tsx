@@ -5,6 +5,7 @@ import {
   X, Check, ThumbsUp, Link2, Maximize2, MoreHorizontal,
   User, Calendar, ChevronDown, ChevronRight, ChevronUp, Plus, Share2,
   Paperclip, FileText, Image as ImageIcon, Film, Trash2, Loader2, Copy,
+  CheckCircle2, Circle,
 } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
 import PriorityBadge from "@/components/PriorityBadge";
@@ -81,6 +82,12 @@ export default function TaskDetailPanel({
   const [activeTab, setActiveTab]         = useState<"activity" | "comments">("activity");
   const [activityLogs, setActivityLogs]   = useState<{ id: string; action: string; meta: Record<string, string>; user_email: string | null; created_at: string }[]>([]);
   const [activityOrder, setActivityOrder] = useState<"asc" | "desc">("asc");
+  const [comments, setComments]           = useState<{ id: string; user_email: string | null; content: string; created_at: string }[]>([]);
+  const [commentDraft, setCommentDraft]   = useState("");
+  const [submittingComment, setSubmittingComment] = useState(false);
+  const [subtasks, setSubtasks]           = useState<{ id: string; name: string; completed: boolean; status: string }[]>([]);
+  const [subtaskDraft, setSubtaskDraft]   = useState("");
+  const [addingSubtask, setAddingSubtask] = useState(false);
   const menuRef     = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dueDateRef  = useRef<HTMLInputElement>(null);
@@ -89,8 +96,44 @@ export default function TaskDetailPanel({
     import("@/lib/supabase").then(({ supabase }) => {
       supabase.from("BT_activity_logs").select("*").eq("task_id", task.id).order("created_at", { ascending: true })
         .then(({ data }) => setActivityLogs((data as typeof activityLogs) ?? []));
+      supabase.from("BT_comments").select("*").eq("task_id", task.id).order("created_at", { ascending: true })
+        .then(({ data }) => setComments((data as typeof comments) ?? []));
+      supabase.from("BT_tasks").select("id, name, completed, status").eq("parent_task_id", task.id).order("created_at", { ascending: true })
+        .then(({ data }) => setSubtasks((data as typeof subtasks) ?? []));
     });
   }, [task.id]);
+
+  const addSubtask = async () => {
+    const name = subtaskDraft.trim();
+    if (!name) { setAddingSubtask(false); return; }
+    const { supabase } = await import("@/lib/supabase");
+    const { data } = await supabase.from("BT_tasks").insert({
+      name, project_id: task.project_id, section_id: task.section_id,
+      parent_task_id: task.id, status: "not_started", priority: "high", task_type: "bug", position: subtasks.length,
+    }).select("id, name, completed, status").single();
+    if (data) setSubtasks(prev => [...prev, data as typeof subtasks[0]]);
+    setSubtaskDraft(""); setAddingSubtask(false);
+  };
+
+  const toggleSubtask = async (sub: typeof subtasks[0]) => {
+    const completed = !sub.completed;
+    setSubtasks(prev => prev.map(s => s.id === sub.id ? { ...s, completed, status: completed ? "done" : "not_started" } : s));
+    const { supabase } = await import("@/lib/supabase");
+    await supabase.from("BT_tasks").update({ completed, status: completed ? "done" : "not_started" }).eq("id", sub.id);
+  };
+
+  const submitComment = async () => {
+    const content = commentDraft.trim();
+    if (!content) return;
+    setSubmittingComment(true);
+    const { supabase } = await import("@/lib/supabase");
+    const { data } = await supabase.from("BT_comments").insert({
+      task_id: task.id, project_id: task.project_id, user_email: userEmail ?? null, content,
+    }).select().single();
+    if (data) setComments(prev => [...prev, data as typeof comments[0]]);
+    setCommentDraft("");
+    setSubmittingComment(false);
+  };
 
   useEffect(() => {
     fetch(`/api/projects/${projectId}/members`).then(r => r.json()).then(d => setMembers(d.members ?? []));
@@ -442,6 +485,43 @@ export default function TaskDetailPanel({
             />
           </div>
 
+          {/* Subtasks */}
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-sm font-semibold text-[#151B26]">Subtasks</span>
+              {subtasks.length > 0 && <span className="text-xs bg-[#E8E8E9] text-[#6B6F76] rounded-full px-1.5 py-0.5">{subtasks.filter(s => s.completed).length}/{subtasks.length}</span>}
+              <button onClick={() => setAddingSubtask(true)} className="text-[#6B6F76] hover:text-[#4573D9]"><Plus size={14} /></button>
+            </div>
+            <div className="flex flex-col gap-1">
+              {subtasks.map(sub => (
+                <div key={sub.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#FAFBFC] group">
+                  <button onClick={() => toggleSubtask(sub)} className="flex-shrink-0">
+                    {sub.completed
+                      ? <CheckCircle2 size={15} className="text-green-500" />
+                      : <Circle size={15} className="text-[#C8C9CC] hover:text-[#4573D9]" />}
+                  </button>
+                  <span className={`text-sm flex-1 ${sub.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`}>{sub.name}</span>
+                </div>
+              ))}
+              {addingSubtask ? (
+                <div className="flex items-center gap-2 px-2 py-1 border border-[#4573D9] rounded">
+                  <Circle size={15} className="text-[#C8C9CC] flex-shrink-0" />
+                  <input
+                    autoFocus value={subtaskDraft} onChange={e => setSubtaskDraft(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") addSubtask(); if (e.key === "Escape") { setAddingSubtask(false); setSubtaskDraft(""); } }}
+                    onBlur={addSubtask}
+                    placeholder="Subtask name"
+                    className="flex-1 text-sm outline-none"
+                  />
+                </div>
+              ) : (
+                <button onClick={() => setAddingSubtask(true)} className="flex items-center gap-2 px-2 py-1.5 text-sm text-[#9EA3AA] hover:text-[#6B6F76]">
+                  <Plus size={13} /> Add subtask
+                </button>
+              )}
+            </div>
+          </div>
+
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
@@ -589,7 +669,25 @@ export default function TaskDetailPanel({
             )}
 
             {activeTab === "comments" && (
-              <p className="text-sm text-[#6B6F76]">Comments coming soon.</p>
+              <div className="flex flex-col gap-3">
+                {comments.length === 0 && (
+                  <p className="text-sm text-[#6B6F76]">No comments yet. Be the first!</p>
+                )}
+                {comments.map(c => (
+                  <div key={c.id} className="flex items-start gap-2">
+                    <div className="w-6 h-6 rounded-full bg-[#4573D9] flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0 mt-0.5">
+                      {c.user_email?.slice(0, 2).toUpperCase() ?? "??"}
+                    </div>
+                    <div className="flex-1 min-w-0 bg-[#FAFBFC] rounded-lg px-3 py-2 border border-[#E8E8E9]">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="text-xs font-medium text-[#151B26]">{c.user_email?.split("@")[0] ?? "Unknown"}</span>
+                        <span className="text-xs text-[#B0B3B8]">{new Date(c.created_at).toLocaleString()}</span>
+                      </div>
+                      <p className="text-sm text-[#151B26] whitespace-pre-wrap break-words">{c.content}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </div>
@@ -598,7 +696,20 @@ export default function TaskDetailPanel({
           <div className="w-7 h-7 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
             {userEmail?.slice(0, 2).toUpperCase() ?? "??"}
           </div>
-          <input placeholder="Add a comment" className="flex-1 text-sm border border-[#E8E8E9] rounded-md px-3 py-2 outline-none focus:border-[#4573D9] placeholder-[#6B6F76] text-[#151B26]" />
+          <input
+            placeholder="Add a comment…"
+            value={commentDraft}
+            onChange={e => setCommentDraft(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitComment(); } }}
+            className="flex-1 text-sm border border-[#E8E8E9] rounded-md px-3 py-2 outline-none focus:border-[#4573D9] placeholder-[#6B6F76] text-[#151B26]"
+          />
+          <button
+            onClick={submitComment}
+            disabled={!commentDraft.trim() || submittingComment}
+            className="px-3 py-2 bg-[#4573D9] text-white text-sm rounded-md hover:bg-[#3F65C4] disabled:opacity-40"
+          >
+            Post
+          </button>
         </div>
       </div>
     </>

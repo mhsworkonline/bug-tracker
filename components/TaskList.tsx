@@ -417,6 +417,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
             ) : (
               <div title={userEmail} className="w-7 h-7 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold cursor-default">{userInitials}</div>
             )}
+            <Link href="/my-tasks" className="hidden sm:flex px-2 py-1 text-xs text-[#6B6F76] border border-[#E8E8E9] rounded hover:bg-[#F5F5F5]">My Tasks</Link>
             <button onClick={handleLogout} className="px-2 py-1 text-xs text-[#6B6F76] border border-[#E8E8E9] rounded hover:bg-[#F5F5F5]">Logout</button>
           </div>
           <button className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-[#4573D9] text-white text-sm rounded-md hover:bg-[#3F65C4]">
@@ -549,8 +550,16 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
           <button
             onClick={() => { setShowSearch(v => !v); if (showSearch) setSearchQuery(""); }}
             className={`p-2 rounded transition-colors ${showSearch ? "text-[#4573D9] bg-[#EEF2FB]" : "text-[#6B6F76] hover:bg-[#F5F5F5]"}`}
+            title="Search in project"
           >
             <Search size={14} />
+          </button>
+          <button
+            onClick={() => { const e = new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }); window.dispatchEvent(e); }}
+            className="hidden sm:flex items-center gap-1 px-2 py-1.5 text-xs text-[#9EA3AA] border border-[#E8E8E9] rounded hover:bg-[#F5F5F5]"
+            title="Global search"
+          >
+            <Search size={11} /> <kbd className="text-[10px]">⌘K</kbd>
           </button>
         </div>
       </div>

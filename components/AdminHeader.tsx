@@ -39,6 +39,9 @@ export default function AdminHeader() {
         <Link href="/admin/settings" className="p-2 text-[#6B6F76] hover:bg-[#F5F5F5] rounded-md" title="Settings">
           <Settings size={16} />
         </Link>
+        <Link href="/my-tasks" className="hidden sm:flex items-center gap-1.5 px-4 py-2 border border-[#E8E8E9] text-sm text-[#151B26] rounded-md hover:bg-[#F5F5F5]">
+          My Tasks
+        </Link>
         <Link href="/admin/users" className="hidden sm:flex items-center gap-1.5 px-4 py-2 border border-[#E8E8E9] text-sm text-[#151B26] rounded-md hover:bg-[#F5F5F5]">
           <Users size={14} /> Users
         </Link>

@@ -99,6 +99,7 @@ export interface Task {
   completed: boolean;
   completed_at?: string | null;
   position: number;
+  parent_task_id?: string | null;
   created_at: string;
   updated_at: string;
   BT_attachments?: Attachment[];

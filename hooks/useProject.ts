@@ -22,7 +22,7 @@ export interface ProjectData {
   updateSection: (id: string, name: string) => Promise<void>;
   deleteSection: (id: string) => Promise<void>;
   duplicateSection: (id: string) => Promise<void>;
-  addTask: (sectionId: string | null, name: string, dueDate?: string) => Promise<Task | null>;
+  addTask: (sectionId: string | null, name: string, dueDate?: string, parentTaskId?: string) => Promise<Task | null>;
   duplicateTask: (taskId: string) => Promise<Task | null>;
   updateTask: (taskId: string, updates: Partial<Omit<Task, "id" | "project_id" | "created_at">>) => Promise<void>;
   toggleTask: (taskId: string) => Promise<void>;
@@ -129,10 +129,11 @@ export function useProject(projectId: string, userEmail?: string): ProjectData {
   }, [sections, tasks, projectId]);
 
   /* ── tasks ── */
-  const addTask = useCallback(async (sectionId: string | null, name: string, dueDate?: string): Promise<Task | null> => {
+  const addTask = useCallback(async (sectionId: string | null, name: string, dueDate?: string, parentTaskId?: string): Promise<Task | null> => {
     const position = tasks.filter(t => t.section_id === sectionId).length;
     const payload: Record<string, unknown> = { section_id: sectionId, project_id: projectId, name, position, status: "not_started", priority: "high", task_type: "bug" };
     if (dueDate) payload.due_date = dueDate;
+    if (parentTaskId) payload.parent_task_id = parentTaskId;
     const { data, error } = await supabase
       .from("BT_tasks")
       .insert(payload)
