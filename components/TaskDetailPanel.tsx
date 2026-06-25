@@ -14,6 +14,7 @@ import type { Task, Section, Attachment } from "@/lib/data";
 import type { ProjectData } from "@/hooks/useProject";
 import { useAdminSettings } from "@/lib/adminSettingsContext";
 import CustomFieldsPanel from "@/components/CustomFieldsPanel";
+import ShareTaskModal from "@/components/ShareTaskModal";
 
 interface Props {
   task: Task;
@@ -80,6 +81,7 @@ export default function TaskDetailPanel({
   const [showMenu, setShowMenu]           = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [linkCopied, setLinkCopied]       = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [liked, setLiked]                 = useState(false);
   const [isDragging, setIsDragging]       = useState(false);
   const [uploadError, setUploadError]     = useState<string | null>(null);
@@ -427,10 +429,10 @@ export default function TaskDetailPanel({
               </button>
             </div>
             <button
-              onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/projects/${task.project_id}/tasks/${task.id}`); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); }}
+              onClick={() => setShowShareModal(true)}
               className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-[#4573D9] text-white text-sm rounded-md hover:bg-[#3F65C4]"
             >
-              <Share2 size={13} /> {linkCopied ? "Copied!" : "Share"}
+              <Share2 size={13} /> Share
             </button>
             <button title="Like" onClick={() => setLiked(v => !v)} className={`hidden sm:flex items-center gap-1 p-1.5 rounded transition-colors ${liked ? "text-[#4573D9] bg-[#EEF2FB]" : "text-[#6B6F76] hover:bg-[#F5F5F5]"}`}><ThumbsUp size={15} /></button>
             <button title="Copy link" onClick={copyLink} className="hidden sm:flex p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><Link2 size={15} /></button>
@@ -934,6 +936,16 @@ export default function TaskDetailPanel({
           </button>
         </div>
       </div>
+      {showShareModal && (
+        <ShareTaskModal
+          taskId={task.id}
+          taskName={task.name}
+          projectId={task.project_id}
+          projectName={projectName}
+          userEmail={userEmail}
+          onClose={() => setShowShareModal(false)}
+        />
+      )}
     </>
   );
 }

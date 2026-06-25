@@ -31,6 +31,7 @@ import DashboardView from "@/components/DashboardView";
 import CalendarView from "@/components/CalendarView";
 import GanttView from "@/components/GanttView";
 import InboxPanel from "@/components/InboxPanel";
+import ShareProjectModal from "@/components/ShareProjectModal";
 
 const TABS = ["List","Board","Calendar","Gantt","Dashboard"];
 
@@ -142,6 +143,7 @@ export default function TaskList({ projectId, userEmail }: { projectId: string; 
   const [selectedIds, setSelectedIds]         = useState<Set<string>>(new Set());
   const [showCustomize, setShowCustomize]     = useState(false);
   const [showColumns, setShowColumns]         = useState(false);
+  const [showShare, setShowShare]             = useState(false);
   const [showStatusMenu, setShowStatusMenu]   = useState(false);
   const [isFavorite, setIsFavorite]           = useState(project?.is_favorite ?? false);
   const [projectStatus, setProjectStatus]     = useState<string>(project?.status ?? "on_track");
@@ -441,7 +443,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
             <Link href="/my-tasks" className="hidden sm:flex px-2 py-1 text-xs text-[#6B6F76] border border-[#E8E8E9] rounded hover:bg-[#F5F5F5]">My Tasks</Link>
             <button onClick={handleLogout} className="px-2 py-1 text-xs text-[#6B6F76] border border-[#E8E8E9] rounded hover:bg-[#F5F5F5]">Logout</button>
           </div>
-          <button className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-[#4573D9] text-white text-sm rounded-md hover:bg-[#3F65C4]">
+          <button onClick={() => setShowShare(true)} className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-[#4573D9] text-white text-sm rounded-md hover:bg-[#3F65C4]">
             <Share2 size={13} /> Share
           </button>
           <button disabled className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 border border-[#E8E8E9] text-sm text-[#B0B3B8] rounded-md cursor-not-allowed opacity-50">
@@ -1061,6 +1063,14 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
         ) : null;
       })()}
       {showCustomize && <CustomizePanel onClose={() => setShowCustomize(false)} />}
+      {showShare && project && (
+        <ShareProjectModal
+          projectId={projectId}
+          projectName={project.name}
+          ownerEmail={userEmail}
+          onClose={() => setShowShare(false)}
+        />
+      )}
       {showColumns && (
         <ShowHideColumns
           configs={columnConfigs}
