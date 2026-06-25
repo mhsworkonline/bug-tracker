@@ -33,6 +33,7 @@ interface Props {
   removeAttachment: ProjectData["removeAttachment"];
   userEmail?: string;
   isAdmin?: boolean;
+  standalone?: boolean;
 }
 
 function formatActivityLog(log: { action: string; meta: Record<string, string> }): string {
@@ -64,7 +65,7 @@ function fileIcon(type: string) {
 export default function TaskDetailPanel({
   task, tasks, projectId, projectName, projectColor, sections, onClose,
   updateTask, toggleTask, duplicateTask, deleteTask, addTask, onOpenTask,
-  addAttachment, removeAttachment, userEmail, isAdmin = false,
+  addAttachment, removeAttachment, userEmail, isAdmin = false, standalone = false,
 }: Props) {
   const { lockPriorities, requireAssigneeApproval } = useAdminSettings();
   const taskIndex = tasks.findIndex(t => t.id === task.id);
@@ -337,13 +338,15 @@ export default function TaskDetailPanel({
     return () => document.removeEventListener("keydown", h, true);
   }, []);
 
-  const panelClass = fullscreen
-    ? "fixed inset-0 bg-white z-50 flex flex-col overflow-hidden"
-    : "fixed right-0 top-0 h-full w-full sm:w-[45%] bg-white z-50 shadow-xl flex flex-col overflow-hidden";
+  const panelClass = standalone
+    ? "flex flex-col h-full overflow-hidden"
+    : fullscreen
+      ? "fixed inset-0 bg-white z-50 flex flex-col overflow-hidden"
+      : "fixed right-0 top-0 h-full w-full sm:w-[45%] bg-white z-50 shadow-xl flex flex-col overflow-hidden";
 
   return (
     <>
-      {!fullscreen && <div className="fixed inset-0 bg-black/20 z-40" onClick={handleClose} />}
+      {!standalone && !fullscreen && <div className="fixed inset-0 bg-black/20 z-40" onClick={handleClose} />}
       <div className={panelClass}>
 
         {/* Top bar */}

@@ -77,35 +77,34 @@ export default function TaskDetailStandalone({ projectId, taskId, userEmail }: P
   if (!task || !project) return <div className="min-h-screen flex items-center justify-center text-sm text-[#6B6F76]">Task not found.</div>;
 
   return (
-    <div className="min-h-screen bg-[#FAFBFC]">
+    <div className="h-screen flex flex-col bg-[#FAFBFC]">
       {/* Back link */}
-      <div className="px-4 py-3 border-b border-[#E8E8E9] bg-white flex items-center gap-2">
+      <div className="px-4 py-3 border-b border-[#E8E8E9] bg-white flex items-center gap-2 flex-shrink-0">
         <button onClick={() => router.push(`/projects/${projectId}`)} className="text-sm text-[#6B6F76] hover:text-[#151B26]">
           ← Back to {project.name}
         </button>
       </div>
-      <div className="max-w-4xl mx-auto p-4">
-        <div className="bg-white rounded-xl border border-[#E8E8E9] shadow-sm overflow-hidden">
-          <TaskDetailPanel
-            task={task}
-            tasks={tasks}
-            projectId={projectId}
-            projectName={project.name}
-            projectColor={project.icon_bg ?? "#4573D9"}
-            sections={sections}
-            onClose={() => router.push(`/projects/${projectId}`)}
-            updateTask={updateTask}
-            toggleTask={toggleTask}
-            duplicateTask={duplicateTask}
-            deleteTask={deleteTask}
-            addTask={addTask}
-            onOpenTask={(id) => router.push(`/projects/${projectId}/tasks/${id}`)}
-            addAttachment={addAttachment}
-            removeAttachment={removeAttachment}
-            userEmail={userEmail}
-            isAdmin={true}
-          />
-        </div>
+      <div className="flex-1 overflow-hidden max-w-4xl w-full mx-auto">
+        <TaskDetailPanel
+          task={task}
+          tasks={tasks}
+          projectId={projectId}
+          projectName={project.name}
+          projectColor={project.icon_bg ?? "#4573D9"}
+          sections={sections}
+          onClose={() => router.push(`/projects/${projectId}`)}
+          updateTask={updateTask}
+          toggleTask={toggleTask}
+          duplicateTask={duplicateTask}
+          deleteTask={deleteTask}
+          addTask={addTask}
+          onOpenTask={(id) => router.push(`/projects/${projectId}/tasks/${id}`)}
+          addAttachment={addAttachment}
+          removeAttachment={removeAttachment}
+          userEmail={userEmail}
+          isAdmin={true}
+          standalone={true}
+        />
       </div>
     </div>
   );
