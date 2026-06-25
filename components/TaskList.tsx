@@ -24,7 +24,7 @@ import { exportToCSV, exportToExcel, exportToPDF, exportToJSON } from "@/lib/exp
 import { createSupabaseBrowser } from "@/lib/auth-browser";
 import { useAdminSettings } from "@/lib/adminSettingsContext";
 import { ADMIN_EMAIL } from "@/lib/constants";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useStore } from "@/lib/store";
 import BoardView from "@/components/BoardView";
 import DashboardView from "@/components/DashboardView";
@@ -78,6 +78,7 @@ function SortHeader({ label, sk, sortKey, sortDir, onSort, className }: {
 
 export default function TaskList({ projectId, userEmail }: { projectId: string; userEmail?: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const handleLogout = async () => {
     const sb = createSupabaseBrowser();
     await sb.auth.signOut();
@@ -137,7 +138,7 @@ export default function TaskList({ projectId, userEmail }: { projectId: string; 
   const [copyToast, setCopyToast]             = useState(false);
 
   const [activeTab, setActiveTab]             = useState<"List"|"Board"|"Calendar"|"Gantt"|"Dashboard">("List");
-  const [selectedTaskId, setSelectedTaskId]   = useState<string | null>(null);
+  const [selectedTaskId, setSelectedTaskId]   = useState<string | null>(() => searchParams.get("task"));
   const [selectedIds, setSelectedIds]         = useState<Set<string>>(new Set());
   const [showCustomize, setShowCustomize]     = useState(false);
   const [showColumns, setShowColumns]         = useState(false);

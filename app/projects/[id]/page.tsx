@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import TaskList from "@/components/TaskList";
 import { getUser } from "@/lib/auth-server";
 
@@ -5,7 +6,9 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   const [{ id }, user] = await Promise.all([params, getUser()]);
   return (
     <div className="h-screen flex flex-col">
-      <TaskList projectId={id} userEmail={user?.email} />
+      <Suspense fallback={null}>
+        <TaskList projectId={id} userEmail={user?.email} />
+      </Suspense>
     </div>
   );
 }
