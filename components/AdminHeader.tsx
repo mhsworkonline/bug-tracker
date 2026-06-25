@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Settings, Users, Plus, LogOut } from "lucide-react";
 import { createSupabaseBrowser } from "@/lib/auth-browser";
+import InboxPanel from "@/components/InboxPanel";
 
 export default function AdminHeader() {
   const router = useRouter();
@@ -36,6 +37,7 @@ export default function AdminHeader() {
             <span className="hidden sm:block text-sm text-[#6B6F76]">{email}</span>
           </div>
         )}
+        <InboxPanel userEmail={email} />
         <Link href="/admin/settings" className="p-2 text-[#6B6F76] hover:bg-[#F5F5F5] rounded-md" title="Settings">
           <Settings size={16} />
         </Link>

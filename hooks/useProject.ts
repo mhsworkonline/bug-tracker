@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { logActivity } from "@/lib/logActivity";
+import { notify } from "@/lib/notify";
 import type {
   Project, Section, Task, Attachment,
   ColumnConfig, ColumnKey, TaskStatus, TaskPriority, DEFAULT_COLUMNS,
@@ -184,8 +185,11 @@ export function useProject(projectId: string, userEmail?: string): ProjectData {
       const name = task.name;
       if (updates.status !== undefined && updates.status !== task.status)
         logActivity(projectId, "task_status_changed", { task_name: name, from: task.status, to: updates.status }, taskId, userEmail);
-      if (updates.assignee !== undefined && updates.assignee !== task.assignee)
+      if (updates.assignee !== undefined && updates.assignee !== task.assignee) {
         logActivity(projectId, "task_assignee_changed", { task_name: name, from: task.assignee ?? "", to: updates.assignee ?? "" }, taskId, userEmail);
+        if (updates.assignee && updates.assignee !== userEmail)
+          notify(updates.assignee, "task_assigned", `You were assigned "${name}"`, `Assigned by ${userEmail ?? "someone"}`, projectId, taskId);
+      }
       if (updates.priority !== undefined && updates.priority !== task.priority)
         logActivity(projectId, "task_priority_changed", { task_name: name, from: task.priority ?? "", to: updates.priority ?? "" }, taskId, userEmail);
       if (updates.name !== undefined && updates.name !== task.name)

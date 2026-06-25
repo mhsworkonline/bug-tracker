@@ -13,6 +13,7 @@ import TaskTypeBadge from "@/components/TaskTypeBadge";
 import type { Task, Section, Attachment } from "@/lib/data";
 import type { ProjectData } from "@/hooks/useProject";
 import { useAdminSettings } from "@/lib/adminSettingsContext";
+import CustomFieldsPanel from "@/components/CustomFieldsPanel";
 
 interface Props {
   task: Task;
@@ -88,6 +89,9 @@ export default function TaskDetailPanel({
   const [subtasks, setSubtasks]           = useState<{ id: string; name: string; completed: boolean; status: string }[]>([]);
   const [subtaskDraft, setSubtaskDraft]   = useState("");
   const [addingSubtask, setAddingSubtask] = useState(false);
+  const [deps, setDeps]                   = useState<{ id: string; depends_on_id: string; dep_name: string; dep_status: string; dep_completed: boolean }[]>([]);
+  const [showDepPicker, setShowDepPicker] = useState(false);
+  const [depSearch, setDepSearch]         = useState("");
   const menuRef     = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dueDateRef  = useRef<HTMLInputElement>(null);
@@ -100,8 +104,29 @@ export default function TaskDetailPanel({
         .then(({ data }) => setComments((data as typeof comments) ?? []));
       supabase.from("BT_tasks").select("id, name, completed, status").eq("parent_task_id", task.id).order("created_at", { ascending: true })
         .then(({ data }) => setSubtasks((data as typeof subtasks) ?? []));
+      // Load dependencies
+      supabase.from("BT_task_dependencies").select("id, depends_on_id, BT_tasks!depends_on_id(name, status, completed)").eq("task_id", task.id)
+        .then(({ data }) => {
+          setDeps((data ?? []).map((d: Record<string, unknown>) => {
+            const t = d["BT_tasks"] as { name: string; status: string; completed: boolean } | null;
+            return { id: d.id as string, depends_on_id: d.depends_on_id as string, dep_name: t?.name ?? "Unknown", dep_status: t?.status ?? "not_started", dep_completed: t?.completed ?? false };
+          }));
+        });
     });
   }, [task.id]);
+
+  const addDependency = async (dependsOnId: string, depName: string) => {
+    const { supabase } = await import("@/lib/supabase");
+    const { data } = await supabase.from("BT_task_dependencies").insert({ task_id: task.id, depends_on_id: dependsOnId, project_id: task.project_id }).select("id, depends_on_id").single();
+    if (data) setDeps(prev => [...prev, { id: data.id, depends_on_id: data.depends_on_id, dep_name: depName, dep_status: "not_started", dep_completed: false }]);
+    setShowDepPicker(false); setDepSearch("");
+  };
+
+  const removeDependency = async (depId: string) => {
+    setDeps(prev => prev.filter(d => d.id !== depId));
+    const { supabase } = await import("@/lib/supabase");
+    await supabase.from("BT_task_dependencies").delete().eq("id", depId);
+  };
 
   const addSubtask = async () => {
     const name = subtaskDraft.trim();
@@ -130,7 +155,13 @@ export default function TaskDetailPanel({
     const { data } = await supabase.from("BT_comments").insert({
       task_id: task.id, project_id: task.project_id, user_email: userEmail ?? null, content,
     }).select().single();
-    if (data) setComments(prev => [...prev, data as typeof comments[0]]);
+    if (data) {
+      setComments(prev => [...prev, data as typeof comments[0]]);
+      // Notify task assignee if different from commenter
+      if (task.assignee && task.assignee !== userEmail) {
+        import("@/lib/notify").then(({ notify }) => notify(task.assignee!, "comment", `New comment on "${task.name}"`, content, task.project_id, task.id));
+      }
+    }
     setCommentDraft("");
     setSubmittingComment(false);
   };
@@ -522,6 +553,54 @@ export default function TaskDetailPanel({
             </div>
           </div>
 
+          {/* Dependencies */}
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-sm font-semibold text-[#151B26]">Blocking / waiting on</span>
+              {deps.length > 0 && <span className="text-xs bg-[#E8E8E9] text-[#6B6F76] rounded-full px-1.5 py-0.5">{deps.length}</span>}
+              <button onClick={() => setShowDepPicker(v => !v)} className="text-[#6B6F76] hover:text-[#4573D9]"><Plus size={14} /></button>
+            </div>
+            {showDepPicker && (
+              <div className="mb-2 border border-[#E8E8E9] rounded-lg overflow-hidden">
+                <input
+                  autoFocus value={depSearch} onChange={e => setDepSearch(e.target.value)}
+                  placeholder="Search tasks…"
+                  className="w-full px-3 py-2 text-sm outline-none border-b border-[#E8E8E9]"
+                />
+                <div className="max-h-40 overflow-y-auto">
+                  {tasks
+                    .filter(t => t.id !== task.id && !deps.find(d => d.depends_on_id === t.id) && t.name.toLowerCase().includes(depSearch.toLowerCase()))
+                    .slice(0, 10)
+                    .map(t => (
+                      <button key={t.id} onClick={() => addDependency(t.id, t.name)}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[#151B26] hover:bg-[#F5F5F5] text-left">
+                        {t.completed ? <CheckCircle2 size={13} className="text-green-500 flex-shrink-0" /> : <Circle size={13} className="text-[#C8C9CC] flex-shrink-0" />}
+                        <span className="truncate">{t.name}</span>
+                      </button>
+                    ))}
+                  {tasks.filter(t => t.id !== task.id && !deps.find(d => d.depends_on_id === t.id) && t.name.toLowerCase().includes(depSearch.toLowerCase())).length === 0 && (
+                    <p className="text-sm text-[#6B6F76] text-center py-3">No tasks found</p>
+                  )}
+                </div>
+              </div>
+            )}
+            <div className="flex flex-col gap-1">
+              {deps.map(d => (
+                <div key={d.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#FAFBFC] group">
+                  {d.dep_completed ? <CheckCircle2 size={14} className="text-green-500 flex-shrink-0" /> : <Circle size={14} className="text-[#C8C9CC] flex-shrink-0" />}
+                  <span className={`text-sm flex-1 truncate ${d.dep_completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`}>{d.dep_name}</span>
+                  {!d.dep_completed && <span className="text-[10px] text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded">Waiting</span>}
+                  <button onClick={() => removeDependency(d.id)} className="opacity-0 group-hover:opacity-100 p-0.5 text-[#B0B3B8] hover:text-red-500"><Trash2 size={12} /></button>
+                </div>
+              ))}
+              {deps.length === 0 && !showDepPicker && (
+                <button onClick={() => setShowDepPicker(true)} className="flex items-center gap-2 px-2 py-1.5 text-sm text-[#9EA3AA] hover:text-[#6B6F76]">
+                  <Plus size={13} /> Add dependency
+                </button>
+              )}
+            </div>
+          </div>
+
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
@@ -541,6 +620,8 @@ export default function TaskDetailPanel({
               </button>
             </div>
           </div>
+
+          <CustomFieldsPanel projectId={projectId} taskId={task.id} isAdmin={isAdmin} />
 
           <div className="mb-6">
             <h3 className="text-sm font-semibold text-[#151B26] mb-2">Description</h3>

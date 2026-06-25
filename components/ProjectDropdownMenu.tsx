@@ -18,6 +18,7 @@ interface Props {
   onManageMembers: () => void;
   onCopyLink: () => void;
   onDuplicate: () => void;
+  onSaveTemplate: () => void;
   onImport: () => void;
   onToggleActive: () => void;
   onClose: () => void;
@@ -25,7 +26,7 @@ interface Props {
 
 export default function ProjectDropdownMenu({
   project, canManage, position,
-  onExport, onEditSettings, onManageMembers, onCopyLink, onDuplicate, onImport, onToggleActive, onClose,
+  onExport, onEditSettings, onManageMembers, onCopyLink, onDuplicate, onSaveTemplate, onImport, onToggleActive, onClose,
 }: Props) {
   const [showExport, setShowExport] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -69,8 +70,9 @@ export default function ProjectDropdownMenu({
         className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left">
         <Copy size={14} className="text-[#6B6F76]" /> Duplicate
       </button>
-      <button className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#B0B3B8] text-left cursor-not-allowed">
-        <Bookmark size={14} className="text-[#D0D2D6]" /> Save as template
+      <button onClick={() => { onSaveTemplate(); onClose(); }}
+        className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left">
+        <Bookmark size={14} className="text-[#6B6F76]" /> Save as template
       </button>
       <button className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#B0B3B8] text-left cursor-not-allowed">
         <Plus size={14} className="text-[#D0D2D6]" /> Add to portfolio

@@ -28,8 +28,10 @@ import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
 import BoardView from "@/components/BoardView";
 import DashboardView from "@/components/DashboardView";
+import CalendarView from "@/components/CalendarView";
+import InboxPanel from "@/components/InboxPanel";
 
-const TABS = ["List","Board","Dashboard"];
+const TABS = ["List","Board","Calendar","Dashboard"];
 
 function getWeekRange(offset = 0) {
   const now = new Date(), day = now.getDay();
@@ -128,9 +130,12 @@ export default function TaskList({ projectId, userEmail }: { projectId: string; 
   const [showEditProject, setShowEditProject] = useState(false);
   const [showMembers, setShowMembers]         = useState(false);
   const [showImport, setShowImport]           = useState(false);
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [templateSaving, setTemplateSaving]   = useState(false);
+  const [templateSaved, setTemplateSaved]     = useState(false);
   const [copyToast, setCopyToast]             = useState(false);
 
-  const [activeTab, setActiveTab]             = useState<"List"|"Board"|"Dashboard">("List");
+  const [activeTab, setActiveTab]             = useState<"List"|"Board"|"Calendar"|"Dashboard">("List");
   const [selectedTaskId, setSelectedTaskId]   = useState<string | null>(null);
   const [selectedIds, setSelectedIds]         = useState<Set<string>>(new Set());
   const [showCustomize, setShowCustomize]     = useState(false);
@@ -354,6 +359,19 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     setNewTaskName(""); setAddingIn(null);
   };
 
+  const handleSaveTemplate = async () => {
+    if (!project || templateSaving) return;
+    setTemplateSaving(true);
+    const structure = sections.map(s => ({
+      name: s.name,
+      tasks: tasks.filter(t => t.section_id === s.id).map(t => ({ name: t.name, status: t.status, priority: t.priority, task_type: t.task_type })),
+    }));
+    const { supabase } = await import("@/lib/supabase");
+    await supabase.from("BT_templates").insert({ name: project.name, description: project.description ?? "", icon_bg: project.icon_bg, structure });
+    setTemplateSaving(false); setTemplateSaved(true); setShowSaveTemplate(false);
+    setTimeout(() => setTemplateSaved(false), 3000);
+  };
+
   const handleExport = async (type: "csv"|"excel"|"pdf"|"json") => {
     if (!project) return;
     if (type === "csv")   exportToCSV(project, sections, filteredTasks, taskTypes);
@@ -417,6 +435,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
             ) : (
               <div title={userEmail} className="w-7 h-7 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold cursor-default">{userInitials}</div>
             )}
+            <InboxPanel userEmail={userEmail} />
             <Link href="/my-tasks" className="hidden sm:flex px-2 py-1 text-xs text-[#6B6F76] border border-[#E8E8E9] rounded hover:bg-[#F5F5F5]">My Tasks</Link>
             <button onClick={handleLogout} className="px-2 py-1 text-xs text-[#6B6F76] border border-[#E8E8E9] rounded hover:bg-[#F5F5F5]">Logout</button>
           </div>
@@ -432,7 +451,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
       {/* Tabs */}
       <div className="flex items-center px-3 sm:px-6 bg-white border-b border-[#E8E8E9] flex-shrink-0 overflow-x-auto">
         {TABS.map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab as "List"|"Board"|"Dashboard")} className={`px-3 py-2.5 text-sm whitespace-nowrap transition-colors ${tab === activeTab ? "font-semibold text-[#151B26] border-b-2 border-[#151B26]" : "text-[#6B6F76] hover:text-[#151B26]"}`}>{tab}</button>
+          <button key={tab} onClick={() => setActiveTab(tab as "List"|"Board"|"Calendar"|"Dashboard")} className={`px-3 py-2.5 text-sm whitespace-nowrap transition-colors ${tab === activeTab ? "font-semibold text-[#151B26] border-b-2 border-[#151B26]" : "text-[#6B6F76] hover:text-[#151B26]"}`}>{tab}</button>
         ))}
         <button className="px-3 py-2.5 text-sm text-[#6B6F76] hover:text-[#151B26]">+</button>
       </div>
@@ -596,6 +615,9 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
           onOpenTask={id => setSelectedTaskId(id)}
           addTask={addTask} updateTask={updateTask}
         />
+      )}
+      {activeTab === "Calendar" && (
+        <CalendarView tasks={filteredTasks} onOpenTask={id => setSelectedTaskId(id)} updateTask={updateTask} />
       )}
       {activeTab === "Dashboard" && (
         <DashboardView tasks={filteredTasks} sections={sections} />
@@ -1058,6 +1080,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
             const d = await r.json();
             if (d.project) { updateProject(d.project); router.push(`/projects/${d.project.id}`); }
           }}
+          onSaveTemplate={handleSaveTemplate}
           onImport={() => setShowImport(true)}
           onToggleActive={async () => {
             const r = await fetch(`/api/projects/${project.id}`, {
@@ -1095,6 +1118,11 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
       {copyToast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#151B26] text-white text-sm px-4 py-2 rounded-lg shadow-lg z-[200]">
           Link copied to clipboard
+        </div>
+      )}
+      {templateSaved && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#151B26] text-white text-sm px-4 py-2 rounded-lg shadow-lg z-[200]">
+          Template saved
         </div>
       )}
     </div>
