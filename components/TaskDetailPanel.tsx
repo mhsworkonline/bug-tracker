@@ -86,12 +86,17 @@ export default function TaskDetailPanel({
   const [comments, setComments]           = useState<{ id: string; user_email: string | null; content: string; created_at: string }[]>([]);
   const [commentDraft, setCommentDraft]   = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [mentionSearch, setMentionSearch] = useState<string | null>(null);
+  const [mentionUsers, setMentionUsers]   = useState<string[]>([]);
+  const commentInputRef = useRef<HTMLInputElement>(null);
   const [subtasks, setSubtasks]           = useState<{ id: string; name: string; completed: boolean; status: string }[]>([]);
   const [subtaskDraft, setSubtaskDraft]   = useState("");
   const [addingSubtask, setAddingSubtask] = useState(false);
   const [deps, setDeps]                   = useState<{ id: string; depends_on_id: string; dep_name: string; dep_status: string; dep_completed: boolean }[]>([]);
   const [showDepPicker, setShowDepPicker] = useState(false);
   const [depSearch, setDepSearch]         = useState("");
+  const [isFollowing, setIsFollowing]     = useState(false);
+  const [isMilestone, setIsMilestone]     = useState(task.is_milestone ?? false);
   const menuRef     = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dueDateRef  = useRef<HTMLInputElement>(null);
@@ -104,6 +109,10 @@ export default function TaskDetailPanel({
         .then(({ data }) => setComments((data as typeof comments) ?? []));
       supabase.from("BT_tasks").select("id, name, completed, status").eq("parent_task_id", task.id).order("created_at", { ascending: true })
         .then(({ data }) => setSubtasks((data as typeof subtasks) ?? []));
+      if (userEmail) {
+        supabase.from("BT_task_followers").select("id").eq("task_id", task.id).eq("user_email", userEmail).single()
+          .then(({ data }) => setIsFollowing(!!data));
+      }
       // Load dependencies
       supabase.from("BT_task_dependencies").select("id, depends_on_id, BT_tasks!depends_on_id(name, status, completed)").eq("task_id", task.id)
         .then(({ data }) => {
@@ -126,6 +135,21 @@ export default function TaskDetailPanel({
     setDeps(prev => prev.filter(d => d.id !== depId));
     const { supabase } = await import("@/lib/supabase");
     await supabase.from("BT_task_dependencies").delete().eq("id", depId);
+  };
+
+  const toggleFollow = async () => {
+    if (!userEmail) return;
+    const next = !isFollowing;
+    setIsFollowing(next);
+    const { supabase } = await import("@/lib/supabase");
+    if (next) await supabase.from("BT_task_followers").insert({ task_id: task.id, user_email: userEmail });
+    else await supabase.from("BT_task_followers").delete().eq("task_id", task.id).eq("user_email", userEmail);
+  };
+
+  const toggleMilestone = async () => {
+    const next = !isMilestone;
+    setIsMilestone(next);
+    updateTask(task.id, { is_milestone: next });
   };
 
   const addSubtask = async () => {
@@ -157,9 +181,13 @@ export default function TaskDetailPanel({
     }).select().single();
     if (data) {
       setComments(prev => [...prev, data as typeof comments[0]]);
-      // Notify task assignee if different from commenter
-      if (task.assignee && task.assignee !== userEmail) {
+      if (task.assignee && task.assignee !== userEmail)
         import("@/lib/notify").then(({ notify }) => notify(task.assignee!, "comment", `New comment on "${task.name}"`, content, task.project_id, task.id));
+      // Notify @mentioned users
+      const mentions = [...content.matchAll(/@([\w.+-]+@[\w.-]+\.\w+)/g)].map(m => m[1]);
+      const unique = [...new Set(mentions)].filter(e => e !== userEmail && e !== task.assignee);
+      if (unique.length) {
+        import("@/lib/notify").then(({ notify }) => unique.forEach(e => notify(e, "mention", `You were mentioned in "${task.name}"`, content, task.project_id, task.id)));
       }
     }
     setCommentDraft("");
@@ -332,6 +360,22 @@ export default function TaskDetailPanel({
           </button>
 
           <div className="flex items-center gap-1.5">
+            {/* Milestone toggle */}
+            <button
+              onClick={toggleMilestone}
+              title={isMilestone ? "Remove milestone" : "Mark as milestone"}
+              className={`hidden sm:flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-full border transition-colors ${isMilestone ? "bg-amber-50 border-amber-300 text-amber-600" : "border-[#E8E8E9] text-[#6B6F76] hover:border-amber-300 hover:text-amber-600"}`}
+            >
+              ◆ {isMilestone ? "Milestone" : "Set milestone"}
+            </button>
+            {/* Follow toggle */}
+            <button
+              onClick={toggleFollow}
+              title={isFollowing ? "Unfollow task" : "Follow task"}
+              className={`hidden sm:flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-full border transition-colors ${isFollowing ? "bg-[#EEF2FB] border-[#4573D9] text-[#4573D9]" : "border-[#E8E8E9] text-[#6B6F76] hover:border-[#4573D9] hover:text-[#4573D9]"}`}
+            >
+              {isFollowing ? "Following" : "Follow"}
+            </button>
             {/* Prev / Next navigation */}
             <div className="flex items-center border border-[#E8E8E9] rounded-md overflow-hidden">
               <button
@@ -777,13 +821,49 @@ export default function TaskDetailPanel({
           <div className="w-7 h-7 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
             {userEmail?.slice(0, 2).toUpperCase() ?? "??"}
           </div>
-          <input
-            placeholder="Add a comment…"
-            value={commentDraft}
-            onChange={e => setCommentDraft(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitComment(); } }}
-            className="flex-1 text-sm border border-[#E8E8E9] rounded-md px-3 py-2 outline-none focus:border-[#4573D9] placeholder-[#6B6F76] text-[#151B26]"
-          />
+          <div className="relative flex-1">
+            <input
+              ref={commentInputRef}
+              placeholder="Add a comment… (type @ to mention)"
+              value={commentDraft}
+              onChange={e => {
+                const val = e.target.value;
+                setCommentDraft(val);
+                const atIdx = val.lastIndexOf("@");
+                if (atIdx !== -1 && !val.slice(atIdx + 1).includes(" ")) {
+                  const q = val.slice(atIdx + 1).toLowerCase();
+                  setMentionSearch(q);
+                  import("@/lib/supabase").then(({ supabase }) =>
+                    supabase.from("BT_task_followers").select("user_email").eq("task_id", task.id)
+                      .then(({ data }) => {
+                        const emails = [...new Set((data ?? []).map((r: { user_email: string }) => r.user_email))].filter(e => e.toLowerCase().includes(q));
+                        setMentionUsers(emails.slice(0, 5));
+                      })
+                  );
+                } else {
+                  setMentionSearch(null);
+                }
+              }}
+              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && mentionSearch === null) { e.preventDefault(); submitComment(); } }}
+              className="w-full text-sm border border-[#E8E8E9] rounded-md px-3 py-2 outline-none focus:border-[#4573D9] placeholder-[#6B6F76] text-[#151B26]"
+            />
+            {mentionSearch !== null && mentionUsers.length > 0 && (
+              <div className="absolute bottom-full left-0 mb-1 w-full bg-white border border-[#E8E8E9] rounded-lg shadow-lg z-50 overflow-hidden">
+                {mentionUsers.map(email => (
+                  <button key={email} className="w-full text-left px-3 py-2 text-sm hover:bg-[#F5F5F5] text-[#151B26]"
+                    onMouseDown={e => {
+                      e.preventDefault();
+                      const atIdx = commentDraft.lastIndexOf("@");
+                      setCommentDraft(commentDraft.slice(0, atIdx) + `@${email} `);
+                      setMentionSearch(null);
+                      commentInputRef.current?.focus();
+                    }}>
+                    {email}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <button
             onClick={submitComment}
             disabled={!commentDraft.trim() || submittingComment}

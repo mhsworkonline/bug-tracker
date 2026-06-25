@@ -620,7 +620,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
         <CalendarView tasks={filteredTasks} onOpenTask={id => setSelectedTaskId(id)} updateTask={updateTask} />
       )}
       {activeTab === "Dashboard" && (
-        <DashboardView tasks={filteredTasks} sections={sections} />
+        <DashboardView tasks={filteredTasks} sections={sections} projectId={projectId} projectName={project?.name} userEmail={userEmail} isAdmin={isAdmin} />
       )}
 
       {/* Table */}
@@ -679,8 +679,9 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                       className="flex-1 outline-none bg-transparent border-b border-[#4573D9] text-[#151B26]" onClick={e => e.stopPropagation()} />
                   ) : (
                     <>
-                      <span className={`min-w-0 truncate cursor-text ${task.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`}
+                      <span className={`min-w-0 truncate cursor-text flex items-center gap-1 ${task.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`}
                         onClick={e => { if (!task.name) return; e.stopPropagation(); setEditingTaskId(task.id); setEditingTaskName(task.name); }}>
+                        {task.is_milestone && <span className="text-amber-500 text-[10px] flex-shrink-0">◆</span>}
                         {task.name}
                       </span>
                       <span className="sm:hidden text-[10px] text-[#6B6F76] bg-[#F3F4F6] px-1.5 py-0.5 rounded w-fit">{task.status?.replace(/_/g," ")}</span>

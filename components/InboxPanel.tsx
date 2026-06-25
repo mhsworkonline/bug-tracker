@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { Bell, CheckCheck, X, MessageSquare, UserCheck, AlertCircle } from "lucide-react";
+import { Bell, CheckCheck, X, MessageSquare, UserCheck, AlertCircle, AtSign } from "lucide-react";
 
 interface Notification {
   id: string;
@@ -19,6 +19,7 @@ interface Notification {
 const TYPE_ICON: Record<string, React.ReactNode> = {
   task_assigned: <UserCheck size={14} className="text-[#4573D9]" />,
   comment:       <MessageSquare size={14} className="text-[#8B5CF6]" />,
+  mention:       <AtSign size={14} className="text-emerald-500" />,
   default:       <AlertCircle size={14} className="text-[#6B6F76]" />,
 };
 

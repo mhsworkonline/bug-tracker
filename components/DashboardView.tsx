@@ -1,17 +1,20 @@
 "use client";
 import { useMemo } from "react";
+import dynamic from "next/dynamic";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
   LineChart, Line, CartesianGrid,
   PieChart, Pie,
 } from "recharts";
 import type { Task, Section } from "@/lib/data";
+import ProjectStatusUpdates from "@/components/ProjectStatusUpdates";
+import ProjectForms from "@/components/ProjectForms";
 
-interface Props { tasks: Task[]; sections: Section[]; }
+interface Props { tasks: Task[]; sections: Section[]; projectId?: string; projectName?: string; userEmail?: string; isAdmin?: boolean; }
 
 const COLORS = ["#4573D9","#22C55E","#F59E0B","#EF4444","#8B5CF6","#06B6D4","#F97316"];
 
-export default function DashboardView({ tasks, sections }: Props) {
+export default function DashboardView({ tasks, sections, projectId, projectName, userEmail, isAdmin }: Props) {
   const upcoming = useMemo(() => {
     const now = new Date();
     const future = new Date(now); future.setDate(now.getDate() + 14);
@@ -134,6 +137,18 @@ export default function DashboardView({ tasks, sections }: Props) {
           }
         </Widget>
       </div>
+      {projectId && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="bg-white rounded-xl border border-[#E8E8E9] p-5">
+            <ProjectStatusUpdates projectId={projectId} userEmail={userEmail} isAdmin={isAdmin} />
+          </div>
+          {isAdmin && (
+            <div className="bg-white rounded-xl border border-[#E8E8E9] p-5">
+              <ProjectForms projectId={projectId} projectName={projectName ?? "Project"} />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
