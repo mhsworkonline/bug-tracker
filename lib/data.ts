@@ -120,6 +120,8 @@ export interface Project {
   is_active: boolean;
   export_prefix: boolean;
   export_prefix_format: "colon" | "bracket" | "slash";
+  status: "on_track" | "at_risk" | "off_track" | null;
+  is_favorite: boolean;
   created_at: string;
   updated_at: string;
 }

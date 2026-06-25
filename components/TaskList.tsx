@@ -81,6 +81,30 @@ export default function TaskList({ projectId, userEmail }: { projectId: string; 
     router.push("/login");
     router.refresh();
   };
+
+  const toggleFavorite = async () => {
+    if (!project) return;
+    const next = !isFavorite;
+    setIsFavorite(next);
+    const sb = createSupabaseBrowser();
+    await sb.from("BT_projects").update({ is_favorite: next }).eq("id", project.id);
+  };
+
+  const PROJECT_STATUSES = [
+    { key: "on_track",  label: "On track",  color: "#14A454" },
+    { key: "at_risk",   label: "At risk",   color: "#F59E0B" },
+    { key: "off_track", label: "Off track", color: "#EF4444" },
+  ] as const;
+
+  const handleSetStatus = async (key: string) => {
+    if (!project) return;
+    setProjectStatus(key);
+    setShowStatusMenu(false);
+    const sb = createSupabaseBrowser();
+    await sb.from("BT_projects").update({ status: key }).eq("id", project.id);
+  };
+
+  const currentStatus = PROJECT_STATUSES.find(s => s.key === projectStatus);
   const userInitials = userEmail ? userEmail.slice(0, 2).toUpperCase() : "??";
   const isAdmin = userEmail === ADMIN_EMAIL;
 
@@ -112,6 +136,10 @@ export default function TaskList({ projectId, userEmail }: { projectId: string; 
   const [selectedIds, setSelectedIds]         = useState<Set<string>>(new Set());
   const [showCustomize, setShowCustomize]     = useState(false);
   const [showColumns, setShowColumns]         = useState(false);
+  const [showStatusMenu, setShowStatusMenu]   = useState(false);
+  const [isFavorite, setIsFavorite]           = useState(project?.is_favorite ?? false);
+  const [projectStatus, setProjectStatus]     = useState<string>(project?.status ?? "on_track");
+  const statusMenuRef = useRef<HTMLDivElement>(null);
   const [showFilter, setShowFilter]           = useState(false);
   const [showSort, setShowSort]               = useState(false);
   const [showProjectMenu, setShowProjectMenu] = useState(false);
@@ -212,6 +240,16 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
   }, [openSectionMenu, showAddTaskMenu]);
+
+  useEffect(() => {
+    if (!showStatusMenu) return;
+    const close = (e: MouseEvent) => {
+      if (statusMenuRef.current && !statusMenuRef.current.contains(e.target as Node))
+        setShowStatusMenu(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [showStatusMenu]);
 
   const visibleCols = columnConfigs.filter(c => c.visible).map(c => c.column_key as ColumnKey);
 
@@ -351,10 +389,26 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
           <button onClick={openProjectMenu} className="flex items-center gap-1 text-base sm:text-xl font-bold text-[#151B26] hover:bg-[#F5F5F5] px-1 sm:px-2 py-1 rounded min-w-0 truncate">
             <span className="truncate">{project.name}</span> <ChevronDown size={18} className="flex-shrink-0" />
           </button>
-          <button className="p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded hidden sm:flex"><Star size={16} /></button>
-          <button className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 border border-[#E8E8E9] text-sm text-[#6B6F76] rounded-full hover:bg-[#F5F5F5]">
-            ○ Set status <ChevronDown size={13} />
+          <button onClick={toggleFavorite} className="p-1.5 rounded hover:bg-[#F5F5F5] hidden sm:flex" title={isFavorite ? "Remove from favorites" : "Add to favorites"}>
+            <Star size={16} className={isFavorite ? "fill-[#F59E0B] text-[#F59E0B]" : "text-[#6B6F76]"} />
           </button>
+          <div className="relative hidden sm:block" ref={statusMenuRef}>
+            <button onClick={() => setShowStatusMenu(v => !v)} className="flex items-center gap-1.5 px-3 py-1.5 border border-[#E8E8E9] text-sm rounded-full hover:bg-[#F5F5F5]" style={{ color: currentStatus?.color ?? "#6B6F76" }}>
+              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: currentStatus?.color ?? "#E8E8E9" }} />
+              {currentStatus?.label ?? "Set status"} <ChevronDown size={13} />
+            </button>
+            {showStatusMenu && (
+              <div className="absolute left-0 top-full mt-1 bg-white border border-[#E8E8E9] rounded-lg shadow-lg z-50 py-1 min-w-[140px]">
+                {PROJECT_STATUSES.map(s => (
+                  <button key={s.key} onClick={() => handleSetStatus(s.key)} className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-[#F5F5F5]">
+                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
+                    <span style={{ color: s.color }}>{s.label}</span>
+                    {projectStatus === s.key && <span className="ml-auto text-[#4573D9]">✓</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
           <div className="flex items-center gap-1 sm:gap-2">
@@ -368,7 +422,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
           <button className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-[#4573D9] text-white text-sm rounded-md hover:bg-[#3F65C4]">
             <Share2 size={13} /> Share
           </button>
-          <button onClick={() => { setShowCustomize(true); setSelectedTaskId(null); setShowColumns(false); }} className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 border border-[#E8E8E9] text-sm text-[#151B26] rounded-md hover:bg-[#F5F5F5]">
+          <button disabled className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 border border-[#E8E8E9] text-sm text-[#B0B3B8] rounded-md cursor-not-allowed opacity-50">
             <Settings2 size={13} /> Customize
           </button>
         </div>
