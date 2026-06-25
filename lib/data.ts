@@ -101,6 +101,7 @@ export interface Task {
   position: number;
   parent_task_id?: string | null;
   is_milestone?: boolean;
+  start_date?: string | null;
   created_at: string;
   updated_at: string;
   BT_attachments?: Attachment[];

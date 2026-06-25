@@ -29,9 +29,10 @@ import { useStore } from "@/lib/store";
 import BoardView from "@/components/BoardView";
 import DashboardView from "@/components/DashboardView";
 import CalendarView from "@/components/CalendarView";
+import GanttView from "@/components/GanttView";
 import InboxPanel from "@/components/InboxPanel";
 
-const TABS = ["List","Board","Calendar","Dashboard"];
+const TABS = ["List","Board","Calendar","Gantt","Dashboard"];
 
 function getWeekRange(offset = 0) {
   const now = new Date(), day = now.getDay();
@@ -135,7 +136,7 @@ export default function TaskList({ projectId, userEmail }: { projectId: string; 
   const [templateSaved, setTemplateSaved]     = useState(false);
   const [copyToast, setCopyToast]             = useState(false);
 
-  const [activeTab, setActiveTab]             = useState<"List"|"Board"|"Calendar"|"Dashboard">("List");
+  const [activeTab, setActiveTab]             = useState<"List"|"Board"|"Calendar"|"Gantt"|"Dashboard">("List");
   const [selectedTaskId, setSelectedTaskId]   = useState<string | null>(null);
   const [selectedIds, setSelectedIds]         = useState<Set<string>>(new Set());
   const [showCustomize, setShowCustomize]     = useState(false);
@@ -451,7 +452,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
       {/* Tabs */}
       <div className="flex items-center px-3 sm:px-6 bg-white border-b border-[#E8E8E9] flex-shrink-0 overflow-x-auto">
         {TABS.map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab as "List"|"Board"|"Calendar"|"Dashboard")} className={`px-3 py-2.5 text-sm whitespace-nowrap transition-colors ${tab === activeTab ? "font-semibold text-[#151B26] border-b-2 border-[#151B26]" : "text-[#6B6F76] hover:text-[#151B26]"}`}>{tab}</button>
+          <button key={tab} onClick={() => setActiveTab(tab as "List"|"Board"|"Calendar"|"Gantt"|"Dashboard")} className={`px-3 py-2.5 text-sm whitespace-nowrap transition-colors ${tab === activeTab ? "font-semibold text-[#151B26] border-b-2 border-[#151B26]" : "text-[#6B6F76] hover:text-[#151B26]"}`}>{tab}</button>
         ))}
         <button className="px-3 py-2.5 text-sm text-[#6B6F76] hover:text-[#151B26]">+</button>
       </div>
@@ -618,6 +619,11 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
       )}
       {activeTab === "Calendar" && (
         <CalendarView tasks={filteredTasks} onOpenTask={id => setSelectedTaskId(id)} updateTask={updateTask} />
+      )}
+      {activeTab === "Gantt" && (
+        <div className="flex-1 overflow-hidden" style={{ height: "calc(100vh - 160px)" }}>
+          <GanttView tasks={filteredTasks} sections={sections} onOpenTask={id => setSelectedTaskId(id)} statuses={PROJECT_STATUSES} />
+        </div>
       )}
       {activeTab === "Dashboard" && (
         <DashboardView tasks={filteredTasks} sections={sections} projectId={projectId} projectName={project?.name} userEmail={userEmail} isAdmin={isAdmin} />

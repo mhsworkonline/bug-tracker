@@ -78,6 +78,7 @@ export default function TaskDetailPanel({
   const [fullscreen, setFullscreen]       = useState(false);
   const [showMenu, setShowMenu]           = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [linkCopied, setLinkCopied]       = useState(false);
   const [isDragging, setIsDragging]       = useState(false);
   const [uploadError, setUploadError]     = useState<string | null>(null);
   const [activeTab, setActiveTab]         = useState<"activity" | "comments">("activity");
@@ -408,8 +409,11 @@ export default function TaskDetailPanel({
                 <Plus size={13} strokeWidth={2.5} />
               </button>
             </div>
-            <button className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-[#4573D9] text-white text-sm rounded-md hover:bg-[#3F65C4]">
-              <Share2 size={13} /> Share
+            <button
+              onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/projects/${task.project_id}?task=${task.id}`); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); }}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-[#4573D9] text-white text-sm rounded-md hover:bg-[#3F65C4]"
+            >
+              <Share2 size={13} /> {linkCopied ? "Copied!" : "Share"}
             </button>
             <button title="Like" className="hidden sm:flex p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><ThumbsUp size={15} /></button>
             <button title="Copy link" onClick={copyLink} className="hidden sm:flex p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><Link2 size={15} /></button>
@@ -542,6 +546,15 @@ export default function TaskDetailPanel({
             </div>
           </div>
 
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mb-3">
+            <span className="w-24 text-xs sm:text-sm text-[#6B6F76] font-medium flex-shrink-0">Start date</span>
+            <input
+              type="date"
+              value={task.start_date ?? ""}
+              onChange={e => updateTask(task.id, { start_date: e.target.value || null })}
+              className="text-sm border border-[#E8E8E9] rounded px-2 py-1 outline-none focus:border-[#4573D9] text-[#151B26]"
+            />
+          </div>
           <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mb-6">
             <span className="w-24 text-xs sm:text-sm text-[#6B6F76] font-medium flex-shrink-0">Due date</span>
             <button
