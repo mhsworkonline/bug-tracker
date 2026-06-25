@@ -80,12 +80,15 @@ export default function TaskDetailPanel({
   const [showMenu, setShowMenu]           = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [linkCopied, setLinkCopied]       = useState(false);
+  const [liked, setLiked]                 = useState(false);
   const [isDragging, setIsDragging]       = useState(false);
   const [uploadError, setUploadError]     = useState<string | null>(null);
   const [activeTab, setActiveTab]         = useState<"activity" | "comments">("activity");
   const [activityLogs, setActivityLogs]   = useState<{ id: string; action: string; meta: Record<string, string>; user_email: string | null; created_at: string }[]>([]);
   const [activityOrder, setActivityOrder] = useState<"asc" | "desc">("asc");
-  const [comments, setComments]           = useState<{ id: string; user_email: string | null; content: string; created_at: string }[]>([]);
+  const [comments, setComments]           = useState<{ id: string; user_email: string | null; content: string; created_at: string; parent_comment_id?: string | null }[]>([]);
+  const [replyingTo, setReplyingTo]       = useState<string | null>(null);
+  const [replyDraft, setReplyDraft]       = useState("");
   const [commentDraft, setCommentDraft]   = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
   const [mentionSearch, setMentionSearch] = useState<string | null>(null);
@@ -194,6 +197,17 @@ export default function TaskDetailPanel({
     }
     setCommentDraft("");
     setSubmittingComment(false);
+  };
+
+  const submitReply = async (parentId: string) => {
+    const content = replyDraft.trim();
+    if (!content) return;
+    const { supabase } = await import("@/lib/supabase");
+    const { data } = await supabase.from("BT_comments").insert({
+      task_id: task.id, project_id: task.project_id, user_email: userEmail ?? null, content, parent_comment_id: parentId,
+    }).select().single();
+    if (data) setComments(prev => [...prev, data as typeof comments[0]]);
+    setReplyDraft(""); setReplyingTo(null);
   };
 
   useEffect(() => {
@@ -418,7 +432,7 @@ export default function TaskDetailPanel({
             >
               <Share2 size={13} /> {linkCopied ? "Copied!" : "Share"}
             </button>
-            <button title="Like" className="hidden sm:flex p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><ThumbsUp size={15} /></button>
+            <button title="Like" onClick={() => setLiked(v => !v)} className={`hidden sm:flex items-center gap-1 p-1.5 rounded transition-colors ${liked ? "text-[#4573D9] bg-[#EEF2FB]" : "text-[#6B6F76] hover:bg-[#F5F5F5]"}`}><ThumbsUp size={15} /></button>
             <button title="Copy link" onClick={copyLink} className="hidden sm:flex p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><Link2 size={15} /></button>
             <button title={fullscreen ? "Exit full screen" : "Full screen"} onClick={() => setFullscreen(v => !v)} className="hidden sm:flex p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><Maximize2 size={15} /></button>
             <div ref={menuRef} className="relative">
@@ -814,17 +828,48 @@ export default function TaskDetailPanel({
                 {comments.length === 0 && (
                   <p className="text-sm text-[#6B6F76]">No comments yet. Be the first!</p>
                 )}
-                {comments.map(c => (
-                  <div key={c.id} className="flex items-start gap-2">
-                    <div className="w-6 h-6 rounded-full bg-[#4573D9] flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0 mt-0.5">
-                      {c.user_email?.slice(0, 2).toUpperCase() ?? "??"}
-                    </div>
-                    <div className="flex-1 min-w-0 bg-[#FAFBFC] rounded-lg px-3 py-2 border border-[#E8E8E9]">
-                      <div className="flex items-center justify-between gap-2 mb-1">
-                        <span className="text-xs font-medium text-[#151B26]">{c.user_email?.split("@")[0] ?? "Unknown"}</span>
-                        <span className="text-xs text-[#B0B3B8]">{new Date(c.created_at).toLocaleString()}</span>
+                {comments.filter(c => !c.parent_comment_id).map(c => (
+                  <div key={c.id}>
+                    <div className="flex items-start gap-2">
+                      <div className="w-6 h-6 rounded-full bg-[#4573D9] flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0 mt-0.5">
+                        {c.user_email?.slice(0, 2).toUpperCase() ?? "??"}
                       </div>
-                      <p className="text-sm text-[#151B26] whitespace-pre-wrap break-words">{c.content}</p>
+                      <div className="flex-1 min-w-0 bg-[#FAFBFC] rounded-lg px-3 py-2 border border-[#E8E8E9]">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <span className="text-xs font-medium text-[#151B26]">{c.user_email?.split("@")[0] ?? "Unknown"}</span>
+                          <span className="text-xs text-[#B0B3B8]">{new Date(c.created_at).toLocaleString()}</span>
+                        </div>
+                        <p className="text-sm text-[#151B26] whitespace-pre-wrap break-words">{c.content}</p>
+                        <button onClick={() => { setReplyingTo(replyingTo === c.id ? null : c.id); setReplyDraft(""); }} className="mt-1.5 text-xs text-[#6B6F76] hover:text-[#4573D9]">
+                          Reply
+                        </button>
+                      </div>
+                    </div>
+                    {/* Replies */}
+                    <div className="ml-8 mt-2 flex flex-col gap-2">
+                      {comments.filter(r => r.parent_comment_id === c.id).map(r => (
+                        <div key={r.id} className="flex items-start gap-2">
+                          <div className="w-5 h-5 rounded-full bg-[#8B5CF6] flex items-center justify-center text-white text-[9px] font-semibold flex-shrink-0 mt-0.5">
+                            {r.user_email?.slice(0, 2).toUpperCase() ?? "??"}
+                          </div>
+                          <div className="flex-1 min-w-0 bg-white rounded-lg px-3 py-2 border border-[#E8E8E9]">
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <span className="text-xs font-medium text-[#151B26]">{r.user_email?.split("@")[0] ?? "Unknown"}</span>
+                              <span className="text-xs text-[#B0B3B8]">{new Date(r.created_at).toLocaleString()}</span>
+                            </div>
+                            <p className="text-sm text-[#151B26] whitespace-pre-wrap break-words">{r.content}</p>
+                          </div>
+                        </div>
+                      ))}
+                      {replyingTo === c.id && (
+                        <div className="flex items-center gap-2 mt-1">
+                          <input autoFocus value={replyDraft} onChange={e => setReplyDraft(e.target.value)}
+                            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitReply(c.id); } if (e.key === "Escape") setReplyingTo(null); }}
+                            placeholder="Write a reply…" className="flex-1 text-sm border border-[#E8E8E9] rounded-md px-3 py-1.5 outline-none focus:border-[#4573D9]" />
+                          <button onClick={() => submitReply(c.id)} disabled={!replyDraft.trim()} className="px-2.5 py-1.5 bg-[#4573D9] text-white text-xs rounded-md hover:bg-[#3F65C4] disabled:opacity-40">Reply</button>
+                          <button onClick={() => setReplyingTo(null)} className="text-xs text-[#6B6F76] hover:text-[#151B26]">Cancel</button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}

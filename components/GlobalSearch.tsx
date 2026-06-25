@@ -78,7 +78,7 @@ export default function GlobalSearch() {
 
   const navigate = (r: Result) => {
     if (r.type === "project") router.push(`/projects/${r.id}`);
-    else router.push(`/projects/${r.projectId}`);
+    else router.push(`/projects/${r.projectId}/tasks/${r.id}`);
     setOpen(false);
   };
 
