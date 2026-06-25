@@ -104,7 +104,6 @@ export default function TaskList({ projectId, userEmail }: { projectId: string; 
     await sb.from("BT_projects").update({ status: key }).eq("id", project.id);
   };
 
-  const currentStatus = PROJECT_STATUSES.find(s => s.key === projectStatus);
   const userInitials = userEmail ? userEmail.slice(0, 2).toUpperCase() : "??";
   const isAdmin = userEmail === ADMIN_EMAIL;
 
@@ -140,6 +139,7 @@ export default function TaskList({ projectId, userEmail }: { projectId: string; 
   const [isFavorite, setIsFavorite]           = useState(project?.is_favorite ?? false);
   const [projectStatus, setProjectStatus]     = useState<string>(project?.status ?? "on_track");
   const statusMenuRef = useRef<HTMLDivElement>(null);
+  const currentStatus = PROJECT_STATUSES.find(s => s.key === projectStatus);
   const [showFilter, setShowFilter]           = useState(false);
   const [showSort, setShowSort]               = useState(false);
   const [showProjectMenu, setShowProjectMenu] = useState(false);
