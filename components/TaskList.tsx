@@ -146,6 +146,8 @@ export default function TaskList({ projectId, userEmail }: { projectId: string; 
   const [showShare, setShowShare]             = useState(false);
   const [showJiraMenu, setShowJiraMenu]       = useState(false);
   const [jiraWorking, setJiraWorking]         = useState(false);
+  const [jiraLoadingMsg, setJiraLoadingMsg]   = useState<string | null>(null);
+  const [jiraConfirm, setJiraConfirm]         = useState<{ title: string; body: string; action: () => void } | null>(null);
   const [jiraKeyInput, setJiraKeyInput]       = useState<string | null>(null);
   const [showStatusMenu, setShowStatusMenu]   = useState(false);
   const [isFavorite, setIsFavorite]           = useState(project?.is_favorite ?? false);
@@ -626,16 +628,22 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                   )}
                 </div>
                 <button
-                  onClick={async () => {
-                    setShowJiraMenu(false); setJiraWorking(true);
-                    const res = await fetch("/api/jira/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project_id: projectId }) });
-                    const json = await res.json();
-                    if (json.error) { alert(json.error); } else {
-                      const ok = json.results?.filter((r: {jiraKey?: string}) => r.jiraKey).length ?? 0;
-                      const skip = json.results?.filter((r: {jiraKey?: string; error?: string}) => r.jiraKey && !r.error).length ?? 0;
-                      alert(`Exported ${ok} task${ok !== 1 ? "s" : ""} to Jira.${skip > 0 ? ` (${skip} already linked, skipped)` : ""}`);
-                    }
-                    setJiraWorking(false);
+                  onClick={() => {
+                    setShowJiraMenu(false);
+                    setJiraConfirm({
+                      title: "Export project to Jira",
+                      body: `This will create a new Jira issue for every task in "${project?.name}" that hasn't been exported yet. Tasks already linked to Jira will be skipped. This may take a moment for large projects.`,
+                      action: async () => {
+                        setJiraLoadingMsg("Exporting tasks to Jira…");
+                        const res = await fetch("/api/jira/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project_id: projectId }) });
+                        const json = await res.json();
+                        setJiraLoadingMsg(null);
+                        if (json.error) { alert(json.error); } else {
+                          const ok = json.results?.filter((r: {jiraKey?: string}) => r.jiraKey).length ?? 0;
+                          alert(`Export complete. ${ok} task${ok !== 1 ? "s" : ""} sent to Jira.`);
+                        }
+                      },
+                    });
                   }}
                   className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left"
                 >
@@ -643,16 +651,22 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                   Export project to Jira
                 </button>
                 <button
-                  onClick={async () => {
-                    setShowJiraMenu(false); setJiraWorking(true);
-                    const res = await fetch("/api/jira/push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project_id: projectId }) });
-                    const json = await res.json();
-                    if (json.error) { alert(json.error); } else {
-                      const ok = json.results?.filter((r: {pushed?: boolean}) => r.pushed).length ?? 0;
-                      const fail = (json.results?.length ?? 0) - ok;
-                      alert(`Pushed ${ok} task${ok !== 1 ? "s" : ""} to Jira.${fail > 0 ? ` ${fail} failed.` : ""}`);
-                    }
-                    setJiraWorking(false);
+                  onClick={() => {
+                    setShowJiraMenu(false);
+                    setJiraConfirm({
+                      title: "Push project to Jira",
+                      body: `This will overwrite the Jira issues for all linked tasks in "${project?.name}" with the latest values from this app — including name, status, priority, assignee, due date, and attachments.`,
+                      action: async () => {
+                        setJiraLoadingMsg("Pushing changes to Jira…");
+                        const res = await fetch("/api/jira/push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project_id: projectId }) });
+                        const json = await res.json();
+                        setJiraLoadingMsg(null);
+                        if (json.error) { alert(json.error); } else {
+                          const ok = json.results?.filter((r: {pushed?: boolean}) => r.pushed).length ?? 0;
+                          alert(`Push complete. ${ok} task${ok !== 1 ? "s" : ""} updated in Jira.`);
+                        }
+                      },
+                    });
                   }}
                   className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left"
                 >
@@ -660,16 +674,22 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                   Push project to Jira
                 </button>
                 <button
-                  onClick={async () => {
-                    setShowJiraMenu(false); setJiraWorking(true);
-                    const res = await fetch("/api/jira/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project_id: projectId }) });
-                    const json = await res.json();
-                    if (json.error) { alert(json.error); } else {
-                      const ok = json.results?.filter((r: {updated?: boolean}) => r.updated).length ?? 0;
-                      const fail = (json.results?.length ?? 0) - ok;
-                      alert(`Synced ${ok} task${ok !== 1 ? "s" : ""} from Jira.${fail > 0 ? ` ${fail} failed.` : ""} Refresh to see updates.`);
-                    }
-                    setJiraWorking(false);
+                  onClick={() => {
+                    setShowJiraMenu(false);
+                    setJiraConfirm({
+                      title: "Sync project from Jira",
+                      body: `This will pull the latest values from Jira and overwrite the matching fields in "${project?.name}" — including status, priority, name, assignee, due date, and attachments. Tasks updated in Jira will be flagged for your review.`,
+                      action: async () => {
+                        setJiraLoadingMsg("Syncing from Jira…");
+                        const res = await fetch("/api/jira/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project_id: projectId }) });
+                        const json = await res.json();
+                        setJiraLoadingMsg(null);
+                        if (json.error) { alert(json.error); } else {
+                          const ok = json.results?.filter((r: {updated?: boolean}) => r.updated).length ?? 0;
+                          alert(`Sync complete. ${ok} task${ok !== 1 ? "s" : ""} updated from Jira.`);
+                        }
+                      },
+                    });
                   }}
                   className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left"
                 >
@@ -816,6 +836,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                         onClick={e => { if (!task.name) return; e.stopPropagation(); setEditingTaskId(task.id); setEditingTaskName(task.name); }}>
                         {task.is_milestone && <span className="text-amber-500 text-[10px] flex-shrink-0">◆</span>}
                         {task.name}
+                        {task.jira_has_updates && <span title="Updated in Jira — open to review" className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0 inline-block" />}
                       </span>
                       <span className="sm:hidden text-[10px] text-[#6B6F76] bg-[#F3F4F6] px-1.5 py-0.5 rounded w-fit">{task.status?.replace(/_/g," ")}</span>
                     </>
@@ -1003,10 +1024,11 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                         ) : (
                           <>
                             <span
-                              className={`min-w-0 truncate cursor-text ${task.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`}
+                              className={`min-w-0 truncate cursor-text flex items-center gap-1 ${task.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`}
                               onClick={e => { if (!task.name) return; e.stopPropagation(); setEditingTaskId(task.id); setEditingTaskName(task.name); }}
                             >
                               {task.name}
+                              {task.jira_has_updates && <span title="Updated in Jira — open to review" className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0 inline-block" />}
                             </span>
                             {(task.BT_attachments?.length ?? 0) > 0 && (
                               <span className="text-xs text-[#6B6F76] shrink-0" onClick={e => e.stopPropagation()}>📎 {task.BT_attachments!.length}</span>
@@ -1187,6 +1209,37 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
         ) : null;
       })()}
       {showCustomize && <CustomizePanel onClose={() => setShowCustomize(false)} />}
+      {/* Jira confirm modal */}
+      {jiraConfirm && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40" onClick={() => setJiraConfirm(null)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2.5 mb-3">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M11.571 11.429L6.857 6.714A6 6 0 0112 2a6 6 0 015.143 9.143L12 16.286l-5.143-4.857z" fill="#2684FF"/><path d="M12.429 12.571l4.714 4.715A6 6 0 0112 22a6 6 0 01-5.143-9.143L12 7.714l5.143 4.857z" fill="#2684FF" opacity=".5"/></svg>
+              <h2 className="text-base font-semibold text-[#151B26]">{jiraConfirm.title}</h2>
+            </div>
+            <p className="text-sm text-[#6B6F76] leading-relaxed mb-6">{jiraConfirm.body}</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setJiraConfirm(null)} className="px-4 py-2 text-sm text-[#6B6F76] border border-[#E8E8E9] rounded-lg hover:bg-[#F5F5F5]">Cancel</button>
+              <button
+                onClick={() => { const fn = jiraConfirm.action; setJiraConfirm(null); fn(); }}
+                className="px-4 py-2 text-sm text-white bg-[#2684FF] rounded-lg hover:bg-[#1a6fd8]"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Jira full-page loading overlay */}
+      {jiraLoadingMsg && (
+        <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" className="mb-4 animate-pulse"><path d="M11.571 11.429L6.857 6.714A6 6 0 0112 2a6 6 0 015.143 9.143L12 16.286l-5.143-4.857z" fill="#2684FF"/><path d="M12.429 12.571l4.714 4.715A6 6 0 0112 22a6 6 0 01-5.143-9.143L12 7.714l5.143 4.857z" fill="#2684FF" opacity=".5"/></svg>
+          <p className="text-base font-semibold text-[#151B26]">{jiraLoadingMsg}</p>
+          <p className="text-sm text-[#6B6F76] mt-1">Please do not close this page.</p>
+        </div>
+      )}
+
       {showShare && project && (
         <ShareProjectModal
           projectId={projectId}

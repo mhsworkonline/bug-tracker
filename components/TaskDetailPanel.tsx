@@ -122,6 +122,11 @@ export default function TaskDetailPanel({
         supabase.from("BT_task_followers").select("id").eq("task_id", task.id).eq("user_email", userEmail).single()
           .then(({ data }) => setIsFollowing(!!data));
       }
+      // Clear Jira update indicator on open
+      if (task.jira_has_updates) {
+        supabase.from("BT_tasks").update({ jira_has_updates: false }).eq("id", task.id).then(() => {});
+        updateTask(task.id, { jira_has_updates: false } as Parameters<typeof updateTask>[1]);
+      }
       // Load dependencies
       supabase.from("BT_task_dependencies").select("id, depends_on_id, BT_tasks!depends_on_id(name, status, completed)").eq("task_id", task.id)
         .then(({ data }) => {

@@ -103,6 +103,7 @@ export interface Task {
   is_milestone?: boolean;
   start_date?: string | null;
   jira_issue_key?: string | null;
+  jira_has_updates?: boolean | null;
   created_at: string;
   updated_at: string;
   BT_attachments?: Attachment[];

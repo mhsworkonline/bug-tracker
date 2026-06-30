@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   const auth = Buffer.from(`${email}:${api_token}`).toString("base64");
   const headers = { Authorization: `Basic ${auth}`, Accept: "application/json" };
 
-  let query = client.from("BT_tasks").select("id, name, jira_issue_key").not("jira_issue_key", "is", null);
+  let query = client.from("BT_tasks").select("id, name, jira_issue_key, status, priority, assignee, due_date").not("jira_issue_key", "is", null);
   if (project_id)            query = query.eq("project_id", project_id);
   else if (task_ids?.length) query = query.in("id", task_ids);
 
@@ -56,14 +56,30 @@ export async function POST(req: NextRequest) {
 
       // Task field updates
       const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
-      const jiraStatus = (fields.status?.name ?? "").toLowerCase();
+      const jiraStatus   = (fields.status?.name ?? "").toLowerCase();
       const jiraPriority = (fields.priority?.name ?? "").toLowerCase();
-      if (STATUS_MAP[jiraStatus])     updates.status   = STATUS_MAP[jiraStatus];
-      if (PRIORITY_MAP[jiraPriority]) updates.priority = PRIORITY_MAP[jiraPriority];
-      if (fields.summary)             updates.name     = fields.summary;
-      if (fields.assignee?.emailAddress !== undefined) updates.assignee = fields.assignee.emailAddress;
-      if (fields.duedate  !== undefined) updates.due_date    = fields.duedate;
-      if (updates.status === "done")  { updates.completed = true; updates.completed_at = new Date().toISOString(); }
+      const newStatus    = STATUS_MAP[jiraStatus];
+      const newPriority  = PRIORITY_MAP[jiraPriority];
+      const newName      = fields.summary as string | undefined;
+      const newAssignee  = fields.assignee?.emailAddress as string | undefined;
+      const newDue       = fields.duedate as string | undefined;
+
+      if (newStatus)   updates.status   = newStatus;
+      if (newPriority) updates.priority = newPriority;
+      if (newName)     updates.name     = newName;
+      if (newAssignee !== undefined) updates.assignee = newAssignee;
+      if (newDue      !== undefined) updates.due_date = newDue;
+      if (updates.status === "done") { updates.completed = true; updates.completed_at = new Date().toISOString(); }
+
+      // Detect if anything actually changed compared to what we have
+      const hasChanges =
+        (newStatus   && newStatus   !== task.status)   ||
+        (newPriority && newPriority !== task.priority) ||
+        (newName     && newName     !== task.name)     ||
+        (newAssignee !== undefined  && newAssignee !== task.assignee) ||
+        (newDue      !== undefined  && newDue      !== task.due_date);
+
+      if (hasChanges) updates.jira_has_updates = true;
 
       await client.from("BT_tasks").update(updates).eq("id", task.id);
 
