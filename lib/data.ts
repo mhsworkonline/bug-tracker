@@ -102,6 +102,7 @@ export interface Task {
   parent_task_id?: string | null;
   is_milestone?: boolean;
   start_date?: string | null;
+  jira_issue_key?: string | null;
   created_at: string;
   updated_at: string;
   BT_attachments?: Attachment[];
@@ -125,6 +126,7 @@ export interface Project {
   export_prefix_format: "colon" | "bracket" | "slash";
   status: "on_track" | "at_risk" | "off_track" | null;
   is_favorite: boolean;
+  jira_project_key?: string | null;
   created_at: string;
   updated_at: string;
 }

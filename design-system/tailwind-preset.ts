@@ -1,7 +1,7 @@
 import type { Config } from "tailwindcss";
 
 /**
- * Asana-style design system preset.
+ * Bug Tracker design system preset.
  * Drop into any Next.js / Tailwind project:
  *
  *   // tailwind.config.ts

@@ -4,7 +4,7 @@ import Providers from "@/components/Providers";
 
 export const metadata: Metadata = {
   title: "Bug Tracker",
-  description: "Asana-style bug tracker",
+  description: "Bug tracker for managing projects and tasks",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

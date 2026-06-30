@@ -1,8 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import { ChevronLeft, Trash2, Key, Plus, Loader2, Users, Pencil } from "lucide-react";
+import { Trash2, Key, Plus, Loader2, Users, Pencil } from "lucide-react";
 
 interface User    { id: string; email?: string; name?: string; created_at: string; }
 interface Project { id: string; name: string; }
@@ -110,11 +109,10 @@ export default function UsersPage() {
   const projectName = (pid: string) => projects.find(p => p.id === pid)?.name ?? pid.slice(0, 8);
 
   return (
-    <div className="min-h-screen bg-[#FAFBFC]">
-      <div className="bg-white border-b border-[#E8E8E9] px-4 sm:px-8 py-4 flex items-center gap-3">
-        <Link href="/projects" className="p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><ChevronLeft size={18} /></Link>
-        <Users size={18} className="text-[#6B6F76]" />
-        <h1 className="text-lg font-semibold text-[#151B26]">User Management</h1>
+    <div>
+      <div className="bg-white border-b border-[#E8E8E9] px-4 sm:px-8 py-3 flex items-center gap-3">
+        <Users size={16} className="text-[#6B6F76]" />
+        <h1 className="text-base font-semibold text-[#151B26]">Members</h1>
       </div>
 
       {loading ? (

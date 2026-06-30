@@ -144,6 +144,9 @@ export default function TaskList({ projectId, userEmail }: { projectId: string; 
   const [showCustomize, setShowCustomize]     = useState(false);
   const [showColumns, setShowColumns]         = useState(false);
   const [showShare, setShowShare]             = useState(false);
+  const [showJiraMenu, setShowJiraMenu]       = useState(false);
+  const [jiraWorking, setJiraWorking]         = useState(false);
+  const [jiraKeyInput, setJiraKeyInput]       = useState<string | null>(null);
   const [showStatusMenu, setShowStatusMenu]   = useState(false);
   const [isFavorite, setIsFavorite]           = useState(project?.is_favorite ?? false);
   const [projectStatus, setProjectStatus]     = useState<string>(project?.status ?? "on_track");
@@ -227,6 +230,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
       if (e.key === "Escape") {
         if (showAddTaskMenu) { setShowAddTaskMenu(false); return; }
         if (openSectionMenu) { setOpenSectionMenu(null); return; }
+        if (showJiraMenu)    { setShowJiraMenu(false); return; }
         if (selectedTaskId) { setSelectedTaskId(null); return; }
         if (selectedIds.size > 0) { setSelectedIds(new Set()); return; }
         if (showSearch) { setSearchQuery(""); setShowSearch(false); }
@@ -234,7 +238,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [selectedTaskId, selectedIds, showSearch, showAddTaskMenu, openSectionMenu]);
+  }, [selectedTaskId, selectedIds, showSearch, showAddTaskMenu, openSectionMenu, showJiraMenu]);
 
   useEffect(() => {
     if (!openSectionMenu && !showAddTaskMenu) return;
@@ -570,6 +574,111 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
           <button onClick={() => { setShowColumns(v => !v); setShowCustomize(false); setSelectedTaskId(null); }} className={`hidden sm:flex items-center gap-1 px-2.5 py-1.5 text-sm rounded transition-colors ${showColumns ? "text-[#4573D9] bg-[#EEF2FB]" : "text-[#6B6F76] hover:bg-[#F5F5F5]"}`}>
             <Settings2 size={14} /> Options
           </button>
+          {/* Project-level Jira */}
+          <div className="relative hidden sm:block">
+            <button
+              onClick={() => setShowJiraMenu(v => !v)}
+              disabled={jiraWorking}
+              className="flex items-center gap-1 px-2.5 py-1.5 text-sm text-[#6B6F76] hover:bg-[#F5F5F5] rounded disabled:opacity-40"
+              title="Jira integration"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M11.571 11.429L6.857 6.714A6 6 0 0112 2a6 6 0 015.143 9.143L12 16.286l-5.143-4.857z" fill="#2684FF"/><path d="M12.429 12.571l4.714 4.715A6 6 0 0112 22a6 6 0 01-5.143-9.143L12 7.714l5.143 4.857z" fill="#2684FF" opacity=".5"/></svg>
+              {jiraWorking ? "Working…" : "Jira"}
+            </button>
+            {showJiraMenu && (
+              <div className="absolute right-0 top-full mt-1 bg-white border border-[#E8E8E9] rounded-lg shadow-lg py-1 w-60 z-50">
+                {/* Per-project Jira key */}
+                <div className="px-3 py-2 border-b border-[#F0F1F3]">
+                  <p className="text-xs text-[#6B6F76] mb-1.5">Jira project key for this project</p>
+                  {jiraKeyInput === null ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-mono text-[#151B26] flex-1">{project?.jira_project_key ?? <span className="text-[#9EA3AA] italic text-xs">Using global default</span>}</span>
+                      <button onClick={() => setJiraKeyInput(project?.jira_project_key ?? "")} className="text-xs text-[#4573D9] hover:underline">Change</button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        autoFocus
+                        value={jiraKeyInput}
+                        onChange={e => setJiraKeyInput(e.target.value.toUpperCase())}
+                        placeholder="e.g. BUG"
+                        className="flex-1 px-2 py-1 text-sm font-mono border border-[#E8E8E9] rounded focus:border-[#4573D9] outline-none"
+                        onKeyDown={async e => {
+                          if (e.key === "Escape") { setJiraKeyInput(null); return; }
+                          if (e.key === "Enter") {
+                            const val = jiraKeyInput.trim() || null;
+                            await fetch("/api/projects/" + projectId + "/jira-key", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jira_project_key: val }) });
+                            if (project) project.jira_project_key = val;
+                            setJiraKeyInput(null);
+                          }
+                        }}
+                      />
+                      <button
+                        onClick={async () => {
+                          const val = jiraKeyInput.trim() || null;
+                          await fetch("/api/projects/" + projectId + "/jira-key", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jira_project_key: val }) });
+                          if (project) project.jira_project_key = val;
+                          setJiraKeyInput(null);
+                        }}
+                        className="px-2 py-1 bg-[#4573D9] text-white text-xs rounded"
+                      >Save</button>
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={async () => {
+                    setShowJiraMenu(false); setJiraWorking(true);
+                    const res = await fetch("/api/jira/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project_id: projectId }) });
+                    const json = await res.json();
+                    if (json.error) { alert(json.error); } else {
+                      const ok = json.results?.filter((r: {jiraKey?: string}) => r.jiraKey).length ?? 0;
+                      const skip = json.results?.filter((r: {jiraKey?: string; error?: string}) => r.jiraKey && !r.error).length ?? 0;
+                      alert(`Exported ${ok} task${ok !== 1 ? "s" : ""} to Jira.${skip > 0 ? ` (${skip} already linked, skipped)` : ""}`);
+                    }
+                    setJiraWorking(false);
+                  }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M11.571 11.429L6.857 6.714A6 6 0 0112 2a6 6 0 015.143 9.143L12 16.286l-5.143-4.857z" fill="#2684FF"/><path d="M12.429 12.571l4.714 4.715A6 6 0 0112 22a6 6 0 01-5.143-9.143L12 7.714l5.143 4.857z" fill="#2684FF" opacity=".5"/></svg>
+                  Export project to Jira
+                </button>
+                <button
+                  onClick={async () => {
+                    setShowJiraMenu(false); setJiraWorking(true);
+                    const res = await fetch("/api/jira/push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project_id: projectId }) });
+                    const json = await res.json();
+                    if (json.error) { alert(json.error); } else {
+                      const ok = json.results?.filter((r: {pushed?: boolean}) => r.pushed).length ?? 0;
+                      const fail = (json.results?.length ?? 0) - ok;
+                      alert(`Pushed ${ok} task${ok !== 1 ? "s" : ""} to Jira.${fail > 0 ? ` ${fail} failed.` : ""}`);
+                    }
+                    setJiraWorking(false);
+                  }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M11.571 11.429L6.857 6.714A6 6 0 0112 2a6 6 0 015.143 9.143L12 16.286l-5.143-4.857z" fill="#2684FF"/><path d="M12.429 12.571l4.714 4.715A6 6 0 0112 22a6 6 0 01-5.143-9.143L12 7.714l5.143 4.857z" fill="#2684FF" opacity=".5"/></svg>
+                  Push project to Jira
+                </button>
+                <button
+                  onClick={async () => {
+                    setShowJiraMenu(false); setJiraWorking(true);
+                    const res = await fetch("/api/jira/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project_id: projectId }) });
+                    const json = await res.json();
+                    if (json.error) { alert(json.error); } else {
+                      const ok = json.results?.filter((r: {updated?: boolean}) => r.updated).length ?? 0;
+                      const fail = (json.results?.length ?? 0) - ok;
+                      alert(`Synced ${ok} task${ok !== 1 ? "s" : ""} from Jira.${fail > 0 ? ` ${fail} failed.` : ""} Refresh to see updates.`);
+                    }
+                    setJiraWorking(false);
+                  }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M11.571 11.429L6.857 6.714A6 6 0 0112 2a6 6 0 015.143 9.143L12 16.286l-5.143-4.857z" fill="#2684FF"/><path d="M12.429 12.571l4.714 4.715A6 6 0 0112 22a6 6 0 01-5.143-9.143L12 7.714l5.143 4.857z" fill="#2684FF" opacity=".5"/></svg>
+                  Sync project from Jira
+                </button>
+              </div>
+            )}
+          </div>
           <button
             onClick={() => { setShowSearch(v => !v); if (showSearch) setSearchQuery(""); }}
             className={`p-2 rounded transition-colors ${showSearch ? "text-[#4573D9] bg-[#EEF2FB]" : "text-[#6B6F76] hover:bg-[#F5F5F5]"}`}
@@ -607,6 +716,21 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
               onChange={e => { if (e.target.value) updateSelectedTasks({ due_date: e.target.value }); }}
             />
           </label>
+          <button
+            onClick={async () => {
+              const ids = [...selectedIds];
+              const res = await fetch("/api/jira/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ task_ids: ids }) });
+              const json = await res.json();
+              if (json.error) { alert(json.error); return; }
+              const ok = json.results?.filter((r: {jiraKey?: string}) => r.jiraKey).length ?? 0;
+              const fail = json.results?.length - ok;
+              alert(`Exported ${ok} task${ok !== 1 ? "s" : ""} to Jira${fail > 0 ? `. ${fail} failed.` : "."}`);
+            }}
+            className="flex items-center gap-1.5 text-white/80 hover:text-white"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M11.571 11.429L6.857 6.714A6 6 0 0112 2a6 6 0 015.143 9.143L12 16.286l-5.143-4.857z" fill="currentColor"/><path d="M12.429 12.571l4.714 4.715A6 6 0 0112 22a6 6 0 01-5.143-9.143L12 7.714l5.143 4.857z" fill="currentColor" opacity=".5"/></svg>
+            Export to Jira
+          </button>
           <button onClick={() => setSelectedIds(new Set())} className="ml-auto flex items-center gap-1 text-white/60 hover:text-white" title="Deselect all (Esc)">
             <X size={14} /> Deselect all
           </button>

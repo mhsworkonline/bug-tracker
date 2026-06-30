@@ -83,6 +83,8 @@ export default function TaskDetailPanel({
   const [linkCopied, setLinkCopied]       = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [liked, setLiked]                 = useState(false);
+  const [jiraExporting, setJiraExporting] = useState(false);
+  const [jiraResult, setJiraResult]       = useState<{ key: string; url: string } | null>(null);
   const [isDragging, setIsDragging]       = useState(false);
   const [uploadError, setUploadError]     = useState<string | null>(null);
   const [activeTab, setActiveTab]         = useState<"activity" | "comments">("activity");
@@ -324,6 +326,53 @@ export default function TaskDetailPanel({
   };
 
   const handleDuplicate = async () => { setShowMenu(false); await duplicateTask(task.id); };
+
+  const exportToJira = async () => {
+    setShowMenu(false); setJiraExporting(true); setJiraResult(null);
+    const res = await fetch("/api/jira/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ task_ids: [task.id] }) });
+    const json = await res.json();
+    const result = json.results?.[0];
+    if (result?.jiraKey) {
+      setJiraResult({ key: result.jiraKey, url: result.jiraUrl });
+      updateTask(task.id, { jira_issue_key: result.jiraKey } as Parameters<typeof updateTask>[1]);
+    } else alert(result?.error ?? json.error ?? "Export failed.");
+    setJiraExporting(false);
+  };
+
+  const syncFromJira = async () => {
+    setShowMenu(false); setJiraExporting(true);
+    const res = await fetch("/api/jira/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ task_ids: [task.id] }) });
+    const json = await res.json();
+    const result = json.results?.[0];
+    if (result?.error) alert(`Sync failed: ${result.error}`);
+    else alert(`Synced from Jira (${result?.jiraKey}). Refresh to see latest values.`);
+    setJiraExporting(false);
+  };
+
+  const pushToJira = async () => {
+    setShowMenu(false); setJiraExporting(true);
+    const res = await fetch("/api/jira/push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ task_ids: [task.id] }) });
+    const json = await res.json();
+    const result = json.results?.[0];
+    if (result?.error) alert(`Push failed: ${result.error}`);
+    else alert(`Pushed to Jira (${result?.jiraKey}) successfully.`);
+    setJiraExporting(false);
+  };
+
+  const removeFromJira = async () => {
+    if (!confirm(`Delete ${task.jira_issue_key} from Jira? This cannot be undone.`)) return;
+    setShowMenu(false); setJiraExporting(true);
+    const res = await fetch("/api/jira/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ task_id: task.id }) });
+    const json = await res.json();
+    if (json.error) alert(json.error);
+    else {
+      if (json.warning) alert(json.warning);
+      updateTask(task.id, { jira_issue_key: null } as Parameters<typeof updateTask>[1]);
+      setJiraResult(null);
+    }
+    setJiraExporting(false);
+  };
+
   const handleDelete    = async () => { await deleteTask(task.id); onClose(); };
 
   const section     = sections.find((s) => s.id === task.section_id);
@@ -446,6 +495,27 @@ export default function TaskDetailPanel({
                   <button onClick={handleDuplicate} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left">
                     <Copy size={14} className="text-[#6B6F76]" /> Duplicate task
                   </button>
+                  {task.jira_issue_key ? (
+                    <>
+                      <button onClick={pushToJira} disabled={jiraExporting} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left disabled:opacity-50">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="flex-shrink-0"><path d="M11.571 11.429L6.857 6.714A6 6 0 0112 2a6 6 0 015.143 9.143L12 16.286l-5.143-4.857z" fill="#2684FF"/><path d="M12.429 12.571l4.714 4.715A6 6 0 0112 22a6 6 0 01-5.143-9.143L12 7.714l5.143 4.857z" fill="#2684FF" opacity=".5"/></svg>
+                        {jiraExporting ? "Pushing…" : `Push to Jira (${task.jira_issue_key})`}
+                      </button>
+                      <button onClick={syncFromJira} disabled={jiraExporting} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left disabled:opacity-50">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="flex-shrink-0"><path d="M11.571 11.429L6.857 6.714A6 6 0 0112 2a6 6 0 015.143 9.143L12 16.286l-5.143-4.857z" fill="#2684FF"/><path d="M12.429 12.571l4.714 4.715A6 6 0 0112 22a6 6 0 01-5.143-9.143L12 7.714l5.143 4.857z" fill="#2684FF" opacity=".5"/></svg>
+                        {jiraExporting ? "Syncing…" : `Sync from Jira (${task.jira_issue_key})`}
+                      </button>
+                      <button onClick={removeFromJira} disabled={jiraExporting} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-500 hover:bg-red-50 text-left disabled:opacity-50">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="flex-shrink-0"><path d="M11.571 11.429L6.857 6.714A6 6 0 0112 2a6 6 0 015.143 9.143L12 16.286l-5.143-4.857z" fill="#EF4444"/><path d="M12.429 12.571l4.714 4.715A6 6 0 0112 22a6 6 0 01-5.143-9.143L12 7.714l5.143 4.857z" fill="#EF4444" opacity=".5"/></svg>
+                        Remove from Jira
+                      </button>
+                    </>
+                  ) : (
+                    <button onClick={exportToJira} disabled={jiraExporting} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left disabled:opacity-50">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="flex-shrink-0"><path d="M11.571 11.429L6.857 6.714A6 6 0 0112 2a6 6 0 015.143 9.143L12 16.286l-5.143-4.857z" fill="#2684FF"/><path d="M12.429 12.571l4.714 4.715A6 6 0 0112 22a6 6 0 01-5.143-9.143L12 7.714l5.143 4.857z" fill="#2684FF" opacity=".5"/></svg>
+                      {jiraExporting ? "Exporting…" : "Export to Jira"}
+                    </button>
+                  )}
                   <div className="my-1 border-t border-[#E8E8E9]" />
                   <button onClick={() => { setShowMenu(false); setConfirmDelete(true); }} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-500 hover:bg-red-50 text-left">
                     <Trash2 size={14} /> Delete task
@@ -478,6 +548,14 @@ export default function TaskDetailPanel({
           onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragging(false); }}
           onDrop={handleDrop}
         >
+          {jiraResult && (
+            <div className="mb-4 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M11.571 11.429L6.857 6.714A6 6 0 0112 2a6 6 0 015.143 9.143L12 16.286l-5.143-4.857z" fill="#2684FF"/><path d="M12.429 12.571l4.714 4.715A6 6 0 0112 22a6 6 0 01-5.143-9.143L12 7.714l5.143 4.857z" fill="#2684FF" opacity=".5"/></svg>
+              <span className="text-blue-700">Exported as</span>
+              <a href={jiraResult.url} target="_blank" rel="noopener noreferrer" className="font-semibold text-[#2684FF] hover:underline">{jiraResult.key}</a>
+              <button onClick={() => setJiraResult(null)} className="ml-auto text-blue-400 hover:text-blue-700">×</button>
+            </div>
+          )}
           {isDragging && (
             <div className="absolute inset-0 z-50 bg-[#4573D9]/10 border-2 border-dashed border-[#4573D9] rounded-lg flex items-center justify-center pointer-events-none">
               <p className="text-[#4573D9] font-medium text-sm">Drop files to attach</p>

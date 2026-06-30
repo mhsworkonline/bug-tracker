@@ -1,10 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { FolderOpen, Settings, Activity, TrendingUp, CheckCircle2, Clock, AlertCircle } from "lucide-react";
-import AdminHeader from "@/components/AdminHeader";
+import { FolderOpen, TrendingUp, CheckCircle2, AlertCircle } from "lucide-react";
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, LineChart, Line, CartesianGrid,
@@ -28,32 +26,6 @@ const STATUS_COLORS: Record<string, string> = {
   review:      "#F59E0B",
 };
 
-const NAV_CARDS = [
-  {
-    href:    "/projects",
-    icon:    FolderOpen,
-    label:   "Projects",
-    desc:    "View and manage all projects",
-    color:   "#4573D9",
-    bg:      "#EEF2FB",
-  },
-  {
-    href:    "/admin/settings",
-    icon:    Settings,
-    label:   "Settings",
-    desc:    "Statuses, priorities, storage & more",
-    color:   "#6B6F76",
-    bg:      "#F5F5F5",
-  },
-  {
-    href:    "/admin/activity",
-    icon:    Activity,
-    label:   "Activity Log",
-    desc:    "All project activity across the workspace",
-    color:   "#8B5CF6",
-    bg:      "#F3F0FF",
-  },
-];
 
 export default function AdminDashboard() {
   const [data, setData] = useState<StatsData | null>(null);
@@ -135,36 +107,13 @@ export default function AdminDashboard() {
     : 0;
 
   return (
-    <div className="min-h-screen bg-[#FAFBFC]">
-      <AdminHeader />
+    <div>
       <div className="bg-white border-b border-[#E8E8E9] px-4 sm:px-8 py-3">
-        <h1 className="text-base font-semibold text-[#151B26]">Admin Dashboard</h1>
-        <p className="text-xs text-[#6B6F76]">Workspace overview</p>
+        <h1 className="text-base font-semibold text-[#151B26]">Overview</h1>
+        <p className="text-xs text-[#6B6F76]">Workspace summary</p>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-8 py-6 sm:py-8 flex flex-col gap-6">
-
-        {/* Nav cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {NAV_CARDS.map(card => {
-            const Icon = card.icon;
-            return (
-              <Link
-                key={card.href}
-                href={card.href}
-                className="bg-white border border-[#E8E8E9] rounded-xl p-5 flex items-start gap-4 hover:border-[#4573D9] hover:shadow-sm transition-all group"
-              >
-                <div className="p-2.5 rounded-lg" style={{ background: card.bg }}>
-                  <Icon size={20} style={{ color: card.color }} />
-                </div>
-                <div>
-                  <div className="font-semibold text-[#151B26] group-hover:text-[#4573D9] transition-colors">{card.label}</div>
-                  <div className="text-xs text-[#6B6F76] mt-0.5">{card.desc}</div>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
+      <div className="max-w-5xl px-4 sm:px-8 py-6 sm:py-8 flex flex-col gap-6">
 
         {/* Stat pills */}
         {loading ? (
