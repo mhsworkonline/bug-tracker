@@ -114,7 +114,8 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      await client.from("BT_tasks").update({ jira_issue_key: result.key }).eq("id", task.id);
+      const now = new Date().toISOString();
+      await client.from("BT_tasks").update({ jira_issue_key: result.key, jira_last_pushed_at: now }).eq("id", task.id);
       results.push({ taskId: task.id, taskName: task.name, jiraKey: result.key, jiraUrl: `${base}/browse/${result.key}` });
     } catch {
       results.push({ taskId: task.id, taskName: task.name, error: "Network error" });

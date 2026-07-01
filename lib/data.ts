@@ -104,6 +104,7 @@ export interface Task {
   start_date?: string | null;
   jira_issue_key?: string | null;
   jira_has_updates?: boolean | null;
+  jira_last_pushed_at?: string | null;
   created_at: string;
   updated_at: string;
   BT_attachments?: Attachment[];

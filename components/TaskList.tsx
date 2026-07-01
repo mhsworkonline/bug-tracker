@@ -121,6 +121,11 @@ export default function TaskList({ projectId, userEmail }: { projectId: string; 
     updateColumnConfig,
   } = useProject(projectId, userEmail);
 
+  useEffect(() => {
+    document.title = project?.name ? `${project.name} — Bug Tracker` : "Bug Tracker";
+    return () => { document.title = "Bug Tracker"; };
+  }, [project?.name]);
+
   const { lockPriorities, taskTypes } = useAdminSettings();
   const { updateProject } = useStore();
 
@@ -654,24 +659,33 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                   onClick={() => {
                     setShowJiraMenu(false);
                     setJiraConfirm({
-                      title: "Push project to Jira",
-                      body: `This will overwrite the Jira issues for all linked tasks in "${project?.name}" with the latest values from this app — including name, status, priority, assignee, due date, and attachments.`,
+                      title: "Update Jira issues",
+                      body: `This will sync all tasks in "${project?.name}" to Jira — new tasks will be created as Jira issues, and existing linked tasks will be updated with the latest name, status, priority, assignee, due date, and attachments.`,
                       action: async () => {
-                        setJiraLoadingMsg("Pushing changes to Jira…");
-                        const res = await fetch("/api/jira/push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project_id: projectId }) });
-                        const json = await res.json();
+                        setJiraLoadingMsg("Updating Jira issues…");
+                        const body = JSON.stringify({ project_id: projectId });
+                        const opts = { method: "POST", headers: { "Content-Type": "application/json" }, body };
+                        const [exportRes, pushRes] = await Promise.all([
+                          fetch("/api/jira/export", opts),
+                          fetch("/api/jira/push",   opts),
+                        ]);
+                        const [exportJson, pushJson] = await Promise.all([exportRes.json(), pushRes.json()]);
                         setJiraLoadingMsg(null);
-                        if (json.error) { alert(json.error); } else {
-                          const ok = json.results?.filter((r: {pushed?: boolean}) => r.pushed).length ?? 0;
-                          alert(`Push complete. ${ok} task${ok !== 1 ? "s" : ""} updated in Jira.`);
-                        }
+                        const created  = exportJson.results?.filter((r: {jiraKey?: string; error?: string}) => r.jiraKey && !r.error).length ?? 0;
+                        const updated  = pushJson.results?.filter((r: {pushed?: boolean}) => r.pushed).length ?? 0;
+                        const skipped  = pushJson.skipped ?? 0;
+                        const parts: string[] = [];
+                        if (created)  parts.push(`${created} new task${created !== 1 ? "s" : ""} created in Jira`);
+                        if (updated)  parts.push(`${updated} updated`);
+                        if (skipped)  parts.push(`${skipped} already up to date — skipped`);
+                        alert(`Done. ${parts.length ? parts.join(", ") + "." : "Nothing to update."}`);
                       },
                     });
                   }}
                   className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left"
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M11.571 11.429L6.857 6.714A6 6 0 0112 2a6 6 0 015.143 9.143L12 16.286l-5.143-4.857z" fill="#2684FF"/><path d="M12.429 12.571l4.714 4.715A6 6 0 0112 22a6 6 0 01-5.143-9.143L12 7.714l5.143 4.857z" fill="#2684FF" opacity=".5"/></svg>
-                  Push project to Jira
+                  Update Jira issues
                 </button>
                 <button
                   onClick={() => {

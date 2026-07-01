@@ -85,6 +85,11 @@ export default function TaskDetailPanel({
   const [liked, setLiked]                 = useState(false);
   const [jiraExporting, setJiraExporting] = useState(false);
   const [jiraResult, setJiraResult]       = useState<{ key: string; url: string } | null>(null);
+  const [moveProjects, setMoveProjects]   = useState<{ id: string; name: string }[]>([]);
+  const [moveSections, setMoveSections]   = useState<{ id: string; project_id: string; name: string }[]>([]);
+  const [moveProjectId, setMoveProjectId] = useState("");
+  const [moveSectionId, setMoveSectionId] = useState("");
+  const [moveConfirm, setMoveConfirm]     = useState(false);
   const [isDragging, setIsDragging]       = useState(false);
   const [uploadError, setUploadError]     = useState<string | null>(null);
   const [activeTab, setActiveTab]         = useState<"activity" | "comments">("activity");
@@ -121,6 +126,15 @@ export default function TaskDetailPanel({
       if (userEmail) {
         supabase.from("BT_task_followers").select("id").eq("task_id", task.id).eq("user_email", userEmail).single()
           .then(({ data }) => setIsFollowing(!!data));
+      }
+      // Load projects user can move this task to
+      if (userEmail) {
+        fetch(`/api/projects/user-projects?email=${encodeURIComponent(userEmail)}`)
+          .then(r => r.json())
+          .then(d => {
+            setMoveProjects((d.projects ?? []).filter((p: { id: string }) => p.id !== task.project_id));
+            setMoveSections(d.sections ?? []);
+          });
       }
       // Clear Jira update indicator on open
       if (task.jira_has_updates) {
@@ -504,7 +518,7 @@ export default function TaskDetailPanel({
                     <>
                       <button onClick={pushToJira} disabled={jiraExporting} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left disabled:opacity-50">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="flex-shrink-0"><path d="M11.571 11.429L6.857 6.714A6 6 0 0112 2a6 6 0 015.143 9.143L12 16.286l-5.143-4.857z" fill="#2684FF"/><path d="M12.429 12.571l4.714 4.715A6 6 0 0112 22a6 6 0 01-5.143-9.143L12 7.714l5.143 4.857z" fill="#2684FF" opacity=".5"/></svg>
-                        {jiraExporting ? "Pushing…" : `Push to Jira (${task.jira_issue_key})`}
+                        {jiraExporting ? "Updating…" : `Update Jira (${task.jira_issue_key})`}
                       </button>
                       <button onClick={syncFromJira} disabled={jiraExporting} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left disabled:opacity-50">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="flex-shrink-0"><path d="M11.571 11.429L6.857 6.714A6 6 0 0112 2a6 6 0 015.143 9.143L12 16.286l-5.143-4.857z" fill="#2684FF"/><path d="M12.429 12.571l4.714 4.715A6 6 0 0112 22a6 6 0 01-5.143-9.143L12 7.714l5.143 4.857z" fill="#2684FF" opacity=".5"/></svg>
@@ -603,6 +617,55 @@ export default function TaskDetailPanel({
               {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
+
+          {moveProjects.length > 0 && (
+            <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4 mb-4">
+              <span className="w-24 text-xs sm:text-sm text-[#6B6F76] font-medium flex-shrink-0 pt-1.5">Move to</span>
+              <div className="flex flex-col gap-2 flex-1">
+                <select
+                  value={moveProjectId}
+                  onChange={e => { setMoveProjectId(e.target.value); setMoveSectionId(""); setMoveConfirm(false); }}
+                  className="text-sm text-[#151B26] border border-[#E8E8E9] rounded px-2 py-1.5 outline-none hover:border-[#4573D9] focus:border-[#4573D9] bg-white w-full sm:w-auto"
+                >
+                  <option value="">— Select project</option>
+                  {moveProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+                {moveProjectId && (
+                  <select
+                    value={moveSectionId}
+                    onChange={e => setMoveSectionId(e.target.value)}
+                    className="text-sm text-[#151B26] border border-[#E8E8E9] rounded px-2 py-1.5 outline-none hover:border-[#4573D9] focus:border-[#4573D9] bg-white w-full sm:w-auto"
+                  >
+                    <option value="">— No section</option>
+                    {moveSections.filter(s => s.project_id === moveProjectId).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                )}
+                {moveProjectId && !moveConfirm && (
+                  <button
+                    onClick={() => setMoveConfirm(true)}
+                    className="self-start px-3 py-1.5 text-sm bg-[#4573D9] text-white rounded-lg hover:bg-[#3F65C4]"
+                  >
+                    Move task
+                  </button>
+                )}
+                {moveProjectId && moveConfirm && (
+                  <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <span className="text-sm text-amber-800 flex-1">Move to <strong>{moveProjects.find(p => p.id === moveProjectId)?.name}</strong>? This task will leave the current project.</span>
+                    <button onClick={() => setMoveConfirm(false)} className="text-xs text-[#6B6F76] hover:text-[#151B26]">Cancel</button>
+                    <button
+                      onClick={async () => {
+                        await updateTask(task.id, { project_id: moveProjectId, section_id: moveSectionId || null } as Parameters<typeof updateTask>[1]);
+                        onClose();
+                      }}
+                      className="px-3 py-1 text-xs bg-[#4573D9] text-white rounded-lg hover:bg-[#3F65C4]"
+                    >
+                      Confirm
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mb-4">
             <span className="w-24 text-xs sm:text-sm text-[#6B6F76] font-medium flex-shrink-0">Status</span>

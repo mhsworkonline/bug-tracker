@@ -53,15 +53,25 @@ export async function POST(req: NextRequest) {
   const auth = Buffer.from(`${email}:${api_token}`).toString("base64");
   const headers = { Authorization: `Basic ${auth}`, "Content-Type": "application/json", Accept: "application/json" };
 
-  // Resolve tasks that have a Jira key
-  let query = client.from("BT_tasks").select("*, BT_attachments(name, url)").not("jira_issue_key", "is", null);
+  // Only tasks with a Jira key that have been modified since last push
+  let query = client
+    .from("BT_tasks")
+    .select("*, BT_attachments(name, url)")
+    .not("jira_issue_key", "is", null);
   if (project_id)            query = query.eq("project_id", project_id);
   else if (task_ids?.length) query = query.in("id", task_ids);
 
-  const { data: tasks } = await query;
-  if (!tasks?.length) return NextResponse.json({ error: "No Jira-linked tasks found. Export tasks to Jira first." }, { status: 404 });
+  const { data: allTasks } = await query;
+  if (!allTasks?.length) return NextResponse.json({ results: [], skipped: 0 });
 
-  const results: { taskId: string; taskName: string; jiraKey: string; pushed?: boolean; error?: string }[] = [];
+  // Filter to only tasks modified after last push (or never pushed)
+  const tasks = allTasks.filter(t =>
+    !t.jira_last_pushed_at || new Date(t.updated_at) > new Date(t.jira_last_pushed_at)
+  );
+
+  if (!tasks.length) return NextResponse.json({ results: [], skipped: allTasks.length, message: "All tasks are already up to date in Jira." });
+
+  const results: { taskId: string; taskName: string; jiraKey: string; pushed?: boolean; skipped?: boolean; error?: string }[] = [];
 
   for (const task of tasks) {
     const key         = task.jira_issue_key as string;
@@ -84,6 +94,7 @@ export async function POST(req: NextRequest) {
       });
 
       if (res.status === 204 || res.ok) {
+        await client.from("BT_tasks").update({ jira_last_pushed_at: new Date().toISOString() }).eq("id", task.id);
         results.push({ taskId: task.id, taskName: task.name, jiraKey: key, pushed: true });
       } else {
         const json = await res.json();
@@ -94,5 +105,5 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ results });
+  return NextResponse.json({ results, skipped: allTasks.length - tasks.length });
 }
