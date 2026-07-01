@@ -54,6 +54,14 @@ export async function POST(req: NextRequest) {
   const { data: tasks } = await client.from("BT_tasks").select("*, BT_attachments(name, url)").in("id", ids);
   if (!tasks?.length) return NextResponse.json({ error: "Tasks not found." }, { status: 404 });
 
+  // Pre-fetch all sections for label mapping
+  const sectionIds = [...new Set(tasks.map((t: { section_id: string | null }) => t.section_id).filter(Boolean))];
+  const { data: sectionsData } = sectionIds.length
+    ? await client.from("BT_sections").select("id, name").in("id", sectionIds)
+    : { data: [] };
+  const sectionMap: Record<string, string> = {};
+  for (const s of sectionsData ?? []) sectionMap[s.id] = s.name.replace(/\s+/g, "_");
+
   // Cache project jira keys to avoid repeated DB calls
   const projectKeyCache: Record<string, string> = {};
   async function resolveProjectKey(pid: string): Promise<string> {
@@ -78,12 +86,15 @@ export async function POST(req: NextRequest) {
       const issuetype = TYPE_MAP[task.task_type?.toLowerCase()] ?? "Task";
       const priority  = PRIORITY_MAP[task.priority?.toLowerCase()] ?? "Medium";
 
+      const label = task.section_id ? sectionMap[task.section_id] : null;
+
       // Full fields attempt
       const fullFields: Record<string, unknown> = {
         project:   { key: project_key },
         summary:   task.name,
         issuetype: { name: issuetype },
         priority:  { name: priority },
+        ...(label ? { labels: [label] } : {}),
       };
       const attachments = (task.BT_attachments ?? []) as { name: string; url: string }[];
       const descContent: unknown[] = [];

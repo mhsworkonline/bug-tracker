@@ -64,6 +64,14 @@ export async function POST(req: NextRequest) {
   const { data: allTasks } = await query;
   if (!allTasks?.length) return NextResponse.json({ results: [], skipped: 0 });
 
+  // Pre-fetch sections for label mapping
+  const sectionIds = [...new Set(allTasks.map((t: { section_id: string | null }) => t.section_id).filter(Boolean))];
+  const { data: sectionsData } = sectionIds.length
+    ? await client.from("BT_sections").select("id, name").in("id", sectionIds)
+    : { data: [] };
+  const sectionMap: Record<string, string> = {};
+  for (const s of sectionsData ?? []) sectionMap[s.id] = s.name.replace(/\s+/g, "_");
+
   // Filter to only tasks modified after last push (or never pushed)
   const tasks = allTasks.filter(t =>
     !t.jira_last_pushed_at || new Date(t.updated_at) > new Date(t.jira_last_pushed_at)
@@ -77,11 +85,13 @@ export async function POST(req: NextRequest) {
     const key         = task.jira_issue_key as string;
     const attachments = (task.BT_attachments ?? []) as { name: string; url: string }[];
 
+    const label = task.section_id ? sectionMap[task.section_id] : null;
     const fields: Record<string, unknown> = { summary: task.name };
 
     if (task.priority && PRIORITY_MAP[task.priority.toLowerCase()]) {
       fields.priority = { name: PRIORITY_MAP[task.priority.toLowerCase()] };
     }
+    if (label) fields.labels = [label];
 
     const desc = buildDescription(task.description ?? null, attachments);
     if (desc) fields.description = desc;
