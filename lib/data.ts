@@ -129,6 +129,7 @@ export interface Project {
   status: "on_track" | "at_risk" | "off_track" | null;
   is_favorite: boolean;
   jira_project_key?: string | null;
+  last_excel_export_at?: string | null;
   created_at: string;
   updated_at: string;
 }

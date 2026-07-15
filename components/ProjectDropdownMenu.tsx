@@ -13,7 +13,7 @@ interface Props {
   tasks: Task[];
   canManage: boolean;
   position: { top: number; left: number };
-  onExport: (type: "csv" | "excel" | "pdf" | "json") => void;
+  onExport: (type: "csv" | "excel" | "excel-delta" | "pdf" | "json") => void;
   onEditSettings: () => void;
   onManageMembers: () => void;
   onCopyLink: () => void;
@@ -97,11 +97,25 @@ export default function ProjectDropdownMenu({
         {showExport && (
           <div className="absolute left-full top-0 bg-white border border-[#E8E8E9] rounded-[8px] shadow-lg py-1 w-52 z-[101]">
             <div className="px-4 py-1.5 text-[10px] font-semibold text-[#6B6F76] uppercase tracking-wider">Export</div>
+            <button onClick={() => { onExport("excel"); onClose(); }}
+              className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left">
+              <span className="w-5 h-5 rounded text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#16A34A" }}>X</span>
+              Excel — Full report
+            </button>
+            <button onClick={() => { onExport("excel-delta"); onClose(); }}
+              className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left">
+              <span className="w-5 h-5 rounded text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#16A34A" }}>X</span>
+              <span className="flex-1">
+                Excel — Since last report
+                {project.last_excel_export_at && (
+                  <span className="block text-[11px] text-[#9EA3AA]">Last sent {new Date(project.last_excel_export_at).toLocaleDateString()}</span>
+                )}
+              </span>
+            </button>
             {[
-              { label: "Excel (.xlsx)", badge: "X", badgeBg: "#16A34A", type: "excel" as const },
-              { label: "CSV",           badge: "C", badgeBg: "#6B6F76", type: "csv"   as const },
-              { label: "PDF",           badge: "P", badgeBg: "#DC2626", type: "pdf"   as const },
-              { label: "JSON",          badge: "J", badgeBg: "#4573D9", type: "json"  as const },
+              { label: "CSV",  badge: "C", badgeBg: "#6B6F76", type: "csv"  as const },
+              { label: "PDF",  badge: "P", badgeBg: "#DC2626", type: "pdf"  as const },
+              { label: "JSON", badge: "J", badgeBg: "#4573D9", type: "json" as const },
             ].map(opt => (
               <button key={opt.label} onClick={() => { onExport(opt.type); onClose(); }}
                 className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left">

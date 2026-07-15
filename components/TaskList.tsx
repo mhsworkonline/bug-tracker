@@ -387,12 +387,28 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     setTimeout(() => setTemplateSaved(false), 3000);
   };
 
-  const handleExport = async (type: "csv"|"excel"|"pdf"|"json") => {
+  const handleExport = async (type: "csv"|"excel"|"excel-delta"|"pdf"|"json") => {
     if (!project) return;
     if (type === "csv")   exportToCSV(project, sections, filteredTasks, taskTypes);
-    if (type === "excel") await exportToExcel(project, sections, filteredTasks, taskTypes);
     if (type === "pdf")   await exportToPDF(project, sections, filteredTasks, taskTypes);
     if (type === "json")  exportToJSON(project, sections, filteredTasks);
+
+    if (type === "excel" || type === "excel-delta") {
+      let excelTasks = filteredTasks;
+      if (type === "excel-delta" && project.last_excel_export_at) {
+        const since = new Date(project.last_excel_export_at);
+        excelTasks = filteredTasks.filter(t => new Date(t.updated_at) > since);
+      }
+      if (!excelTasks.length) { alert("No new or changed tasks since the last report."); return; }
+      await exportToExcel(project, sections, excelTasks, taskTypes);
+
+      const now = new Date().toISOString();
+      const { supabase } = await import("@/lib/supabase");
+      await supabase.from("BT_projects").update({ last_excel_export_at: now }).eq("id", project.id);
+      const updatedProject = { ...project, last_excel_export_at: now };
+      updateProject(updatedProject);
+      updateProjectLocal(updatedProject);
+    }
   };
 
   const filterActive = activeFilters.incomplete || activeFilters.completed || activeFilters.justMyTasks ||
