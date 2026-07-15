@@ -387,6 +387,20 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     setTimeout(() => setTemplateSaved(false), 3000);
   };
 
+  // Resolves the exact Jira project (key + name) this project exports to, and confirms with the user before proceeding
+  const confirmJiraProject = async (
+    title: string,
+    describe: (jiraName: string, jiraKey: string) => string,
+    action: () => void
+  ) => {
+    setJiraWorking(true);
+    const res = await fetch(`/api/jira/resolve-project?project_id=${projectId}`);
+    const resolved = await res.json();
+    setJiraWorking(false);
+    if (resolved.error) { alert(resolved.error); return; }
+    setJiraConfirm({ title, body: describe(resolved.name, resolved.key), action });
+  };
+
   const handleExport = async (type: "csv"|"excel"|"excel-delta"|"pdf"|"json") => {
     if (!project) return;
     if (type === "csv")   exportToCSV(project, sections, filteredTasks, taskTypes);
@@ -651,10 +665,10 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                 <button
                   onClick={() => {
                     setShowJiraMenu(false);
-                    setJiraConfirm({
-                      title: "Export project to Jira",
-                      body: `This will create a new Jira issue for every task in "${project?.name}" that hasn't been exported yet. Tasks already linked to Jira will be skipped. This may take a moment for large projects.`,
-                      action: async () => {
+                    confirmJiraProject(
+                      "Export project to Jira",
+                      (jiraName, jiraKey) => `This will create a new Jira issue for every task in "${project?.name}" that hasn't been exported yet, in Jira project "${jiraName}" (${jiraKey}). Tasks already linked to Jira will be skipped. This may take a moment for large projects.`,
+                      async () => {
                         setJiraLoadingMsg("Exporting tasks to Jira…");
                         const res = await fetch("/api/jira/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project_id: projectId }) });
                         const json = await res.json();
@@ -663,8 +677,8 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                           const ok = json.results?.filter((r: {jiraKey?: string}) => r.jiraKey).length ?? 0;
                           alert(`Export complete. ${ok} task${ok !== 1 ? "s" : ""} sent to Jira.`);
                         }
-                      },
-                    });
+                      }
+                    );
                   }}
                   className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left"
                 >
@@ -674,10 +688,10 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                 <button
                   onClick={() => {
                     setShowJiraMenu(false);
-                    setJiraConfirm({
-                      title: "Update Jira issues",
-                      body: `This will sync all tasks in "${project?.name}" to Jira — new tasks will be created as Jira issues, and existing linked tasks will be updated with the latest name, status, priority, assignee, due date, and attachments.`,
-                      action: async () => {
+                    confirmJiraProject(
+                      "Update Jira issues",
+                      (jiraName, jiraKey) => `This will sync all tasks in "${project?.name}" to Jira project "${jiraName}" (${jiraKey}) — new tasks will be created as Jira issues, and existing linked tasks will be updated with the latest name, status, priority, assignee, due date, and attachments.`,
+                      async () => {
                         setJiraLoadingMsg("Updating Jira issues…");
                         const body = JSON.stringify({ project_id: projectId });
                         const opts = { method: "POST", headers: { "Content-Type": "application/json" }, body };
@@ -695,8 +709,8 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                         if (updated)  parts.push(`${updated} updated`);
                         if (skipped)  parts.push(`${skipped} already up to date — skipped`);
                         alert(`Done. ${parts.length ? parts.join(", ") + "." : "Nothing to update."}`);
-                      },
-                    });
+                      }
+                    );
                   }}
                   className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left"
                 >
@@ -767,14 +781,20 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
             />
           </label>
           <button
-            onClick={async () => {
+            onClick={() => {
               const ids = [...selectedIds];
-              const res = await fetch("/api/jira/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ task_ids: ids }) });
-              const json = await res.json();
-              if (json.error) { alert(json.error); return; }
-              const ok = json.results?.filter((r: {jiraKey?: string}) => r.jiraKey).length ?? 0;
-              const fail = json.results?.length - ok;
-              alert(`Exported ${ok} task${ok !== 1 ? "s" : ""} to Jira${fail > 0 ? `. ${fail} failed.` : "."}`);
+              confirmJiraProject(
+                "Export selected tasks to Jira",
+                (jiraName, jiraKey) => `This will create a new Jira issue for ${ids.length} selected task${ids.length !== 1 ? "s" : ""} in Jira project "${jiraName}" (${jiraKey}). Tasks already linked to Jira will be skipped.`,
+                async () => {
+                  const res = await fetch("/api/jira/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ task_ids: ids }) });
+                  const json = await res.json();
+                  if (json.error) { alert(json.error); return; }
+                  const ok = json.results?.filter((r: {jiraKey?: string}) => r.jiraKey).length ?? 0;
+                  const fail = json.results?.length - ok;
+                  alert(`Exported ${ok} task${ok !== 1 ? "s" : ""} to Jira${fail > 0 ? `. ${fail} failed.` : "."}`);
+                }
+              );
             }}
             className="flex items-center gap-1.5 text-white/80 hover:text-white"
           >

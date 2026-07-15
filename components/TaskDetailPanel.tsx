@@ -90,6 +90,7 @@ export default function TaskDetailPanel({
   const [moveProjectId, setMoveProjectId] = useState("");
   const [moveSectionId, setMoveSectionId] = useState("");
   const [moveConfirm, setMoveConfirm]     = useState(false);
+  const [jiraExportConfirm, setJiraExportConfirm] = useState<{ key: string; name: string } | null>(null);
   const [isDragging, setIsDragging]       = useState(false);
   const [uploadError, setUploadError]     = useState<string | null>(null);
   const [activeTab, setActiveTab]         = useState<"activity" | "comments">("activity");
@@ -346,8 +347,16 @@ export default function TaskDetailPanel({
 
   const handleDuplicate = async () => { setShowMenu(false); await duplicateTask(task.id); };
 
+  const askExportToJira = async () => {
+    setShowMenu(false);
+    const res = await fetch(`/api/jira/resolve-project?project_id=${projectId}`);
+    const resolved = await res.json();
+    if (resolved.error) { alert(resolved.error); return; }
+    setJiraExportConfirm({ key: resolved.key, name: resolved.name });
+  };
+
   const exportToJira = async () => {
-    setShowMenu(false); setJiraExporting(true); setJiraResult(null);
+    setJiraExportConfirm(null); setJiraExporting(true); setJiraResult(null);
     const res = await fetch("/api/jira/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ task_ids: [task.id] }) });
     const json = await res.json();
     const result = json.results?.[0];
@@ -530,7 +539,7 @@ export default function TaskDetailPanel({
                       </button>
                     </>
                   ) : (
-                    <button onClick={exportToJira} disabled={jiraExporting} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left disabled:opacity-50">
+                    <button onClick={askExportToJira} disabled={jiraExporting} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left disabled:opacity-50">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="flex-shrink-0"><path d="M11.571 11.429L6.857 6.714A6 6 0 0112 2a6 6 0 015.143 9.143L12 16.286l-5.143-4.857z" fill="#2684FF"/><path d="M12.429 12.571l4.714 4.715A6 6 0 0112 22a6 6 0 01-5.143-9.143L12 7.714l5.143 4.857z" fill="#2684FF" opacity=".5"/></svg>
                       {jiraExporting ? "Exporting…" : "Export to Jira"}
                     </button>
@@ -555,6 +564,23 @@ export default function TaskDetailPanel({
               <div className="flex gap-2 justify-end">
                 <button onClick={() => setConfirmDelete(false)} className="px-4 py-1.5 border border-[#E8E8E9] text-sm text-[#151B26] rounded-md hover:bg-[#FAFBFC]">Cancel</button>
                 <button onClick={handleDelete} className="px-4 py-1.5 bg-red-500 text-white text-sm rounded-md hover:bg-red-600">Delete</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Jira export confirmation */}
+        {jiraExportConfirm && (
+          <div className="fixed inset-0 bg-black/40 z-[70] flex items-center justify-center" onClick={() => setJiraExportConfirm(null)}>
+            <div className="bg-white rounded-xl shadow-xl p-6 w-96" onClick={e => e.stopPropagation()}>
+              <h3 className="text-base font-semibold text-[#151B26] mb-2">Export to Jira?</h3>
+              <p className="text-sm text-[#6B6F76] mb-5">
+                This task will be created as a new issue in Jira project{" "}
+                <span className="font-medium text-[#151B26]">"{jiraExportConfirm.name}"</span> ({jiraExportConfirm.key}).
+              </p>
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setJiraExportConfirm(null)} className="px-4 py-1.5 border border-[#E8E8E9] text-sm text-[#151B26] rounded-md hover:bg-[#FAFBFC]">Cancel</button>
+                <button onClick={exportToJira} className="px-4 py-1.5 bg-[#4573D9] text-white text-sm rounded-md hover:bg-[#3F65C4]">Export</button>
               </div>
             </div>
           </div>
