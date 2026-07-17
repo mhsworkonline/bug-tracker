@@ -72,6 +72,11 @@ export default function TaskDetailStandalone({ projectId, taskId, userEmail }: P
     await supabase.from("BT_attachments").delete().eq("id", attId);
     setTasks(prev => prev.map(t => t.id === tid ? { ...t, BT_attachments: (t.BT_attachments ?? []).filter(a => a.id !== attId) } : t));
   };
+  const addSection: ProjectData["addSection"] = async (name = "New section") => {
+    const { data } = await supabase.from("BT_sections").insert({ project_id: projectId, name, position: sections.length }).select().single();
+    if (data) setSections(prev => [...prev, data as Section]);
+    return (data as Section) ?? null;
+  };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-sm text-[#6B6F76]">Loading…</div>;
   if (!task || !project) return <div className="min-h-screen flex items-center justify-center text-sm text-[#6B6F76]">Task not found.</div>;
@@ -101,6 +106,7 @@ export default function TaskDetailStandalone({ projectId, taskId, userEmail }: P
           onOpenTask={(id) => router.push(`/projects/${projectId}/tasks/${id}`)}
           addAttachment={addAttachment}
           removeAttachment={removeAttachment}
+          addSection={addSection}
           userEmail={userEmail}
           isAdmin={true}
           standalone={true}

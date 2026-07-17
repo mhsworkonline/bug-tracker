@@ -32,6 +32,7 @@ interface Props {
   onOpenTask: (taskId: string) => void;
   addAttachment: ProjectData["addAttachment"];
   removeAttachment: ProjectData["removeAttachment"];
+  addSection: ProjectData["addSection"];
   userEmail?: string;
   isAdmin?: boolean;
   standalone?: boolean;
@@ -63,15 +64,30 @@ function fileIcon(type: string) {
   return <FileText size={16} className="text-[#6B6F76]" />;
 }
 
+async function pngToJpeg(blob: Blob, quality = 0.85): Promise<Blob> {
+  const bitmap = await createImageBitmap(blob);
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(bitmap, 0, 0);
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(b => b ? resolve(b) : reject(new Error("JPEG conversion failed")), "image/jpeg", quality);
+  });
+}
+
 export default function TaskDetailPanel({
   task, tasks, projectId, projectName, projectColor, sections, onClose,
   updateTask, toggleTask, duplicateTask, deleteTask, addTask, onOpenTask,
-  addAttachment, removeAttachment, userEmail, isAdmin = false, standalone = false,
+  addAttachment, removeAttachment, addSection, userEmail, isAdmin = false, standalone = false,
 }: Props) {
   const { lockPriorities, requireAssigneeApproval } = useAdminSettings();
-  const taskIndex = tasks.findIndex(t => t.id === task.id);
-  const prevTask  = taskIndex > 0 ? tasks[taskIndex - 1] : null;
-  const nextTask  = taskIndex < tasks.length - 1 ? tasks[taskIndex + 1] : null;
+  const sectionTasks = tasks.filter(t => t.section_id === task.section_id);
+  const taskIndex = sectionTasks.findIndex(t => t.id === task.id);
+  const prevTask  = taskIndex > 0 ? sectionTasks[taskIndex - 1] : null;
+  const nextTask  = taskIndex < sectionTasks.length - 1 ? sectionTasks[taskIndex + 1] : null;
   const [editingTitle, setEditingTitle]   = useState(true);
   const [titleDraft, setTitleDraft]       = useState(task.name);
   const [uploading, setUploading]         = useState(false);
@@ -91,6 +107,9 @@ export default function TaskDetailPanel({
   const [moveSectionId, setMoveSectionId] = useState("");
   const [moveConfirm, setMoveConfirm]     = useState(false);
   const [jiraExportConfirm, setJiraExportConfirm] = useState<{ key: string; name: string } | null>(null);
+  const [addingSection, setAddingSection] = useState(false);
+  const [newSectionName, setNewSectionName] = useState("");
+  const titleRef = useRef<HTMLTextAreaElement>(null);
   const [isDragging, setIsDragging]       = useState(false);
   const [uploadError, setUploadError]     = useState<string | null>(null);
   const [activeTab, setActiveTab]         = useState<"activity" | "comments">("activity");
@@ -246,6 +265,10 @@ export default function TaskDetailPanel({
   }, [showMenu]);
 
 
+  useEffect(() => {
+    if (editingTitle) titleRef.current?.focus();
+  }, [editingTitle]);
+
   const saveTitle = () => {
     const v = titleDraft.trim();
     if (v && v !== task.name) updateTask(task.id, { name: v });
@@ -323,11 +346,11 @@ export default function TaskDetailPanel({
       const items = Array.from(e.clipboardData?.items ?? []).filter(i => i.type.startsWith("image/"));
       if (!items.length) return;
       e.preventDefault();
-      const files = items.flatMap(item => {
+      const files = await Promise.all(items.flatMap(item => {
         const blob = item.getAsFile();
         if (!blob) return [];
-        return [new File([blob], `screenshot-${Date.now()}.png`, { type: blob.type })];
-      });
+        return [pngToJpeg(blob).then(jpeg => new File([jpeg], `screenshot-${Date.now()}.jpg`, { type: "image/jpeg" }))];
+      }));
       if (files.length) await uploadFilesRef.current(files);
     };
     window.addEventListener("paste", handler);
@@ -439,7 +462,7 @@ export default function TaskDetailPanel({
 
   return (
     <>
-      {!standalone && !fullscreen && <div className="fixed inset-0 bg-black/20 z-40" onClick={handleClose} />}
+      {!standalone && !fullscreen && <div className="fixed inset-0 bg-black/20 z-40 pointer-events-none" />}
       <div className={panelClass}>
 
         {/* Top bar */}
@@ -609,7 +632,7 @@ export default function TaskDetailPanel({
 
           {editingTitle ? (
             <textarea
-              autoFocus
+              ref={titleRef}
               value={titleDraft}
               rows={1}
               onChange={e => {
@@ -634,14 +657,51 @@ export default function TaskDetailPanel({
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mb-4">
             <span className="w-24 text-xs sm:text-sm text-[#6B6F76] font-medium flex-shrink-0">Section</span>
-            <select
-              value={task.section_id ?? ""}
-              onChange={e => updateTask(task.id, { section_id: e.target.value || null })}
-              className="text-sm text-[#151B26] border border-[#E8E8E9] rounded px-2 py-1.5 outline-none hover:border-[#4573D9] focus:border-[#4573D9] bg-white w-full sm:w-auto"
-            >
-              <option value="">— No section</option>
-              {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
+            {addingSection ? (
+              <div className="flex items-center gap-1.5">
+                <input
+                  autoFocus
+                  value={newSectionName}
+                  onChange={e => setNewSectionName(e.target.value)}
+                  placeholder="Section name"
+                  className="text-sm text-[#151B26] border border-[#4573D9] rounded px-2 py-1.5 outline-none"
+                  onKeyDown={async e => {
+                    if (e.key === "Escape") { setAddingSection(false); setNewSectionName(""); return; }
+                    if (e.key === "Enter") {
+                      const name = newSectionName.trim();
+                      if (!name) return;
+                      const s = await addSection(name);
+                      if (s) updateTask(task.id, { section_id: s.id });
+                      setAddingSection(false); setNewSectionName("");
+                    }
+                  }}
+                />
+                <button
+                  onClick={async () => {
+                    const name = newSectionName.trim();
+                    if (!name) { setAddingSection(false); return; }
+                    const s = await addSection(name);
+                    if (s) updateTask(task.id, { section_id: s.id });
+                    setAddingSection(false); setNewSectionName("");
+                  }}
+                  className="px-2 py-1 bg-[#4573D9] text-white text-xs rounded"
+                >Save</button>
+                <button onClick={() => { setAddingSection(false); setNewSectionName(""); }} className="text-xs text-[#6B6F76] hover:text-[#151B26]">Cancel</button>
+              </div>
+            ) : (
+              <select
+                value={task.section_id ?? ""}
+                onChange={e => {
+                  if (e.target.value === "__new__") { setAddingSection(true); return; }
+                  updateTask(task.id, { section_id: e.target.value || null });
+                }}
+                className="text-sm text-[#151B26] border border-[#E8E8E9] rounded px-2 py-1.5 outline-none hover:border-[#4573D9] focus:border-[#4573D9] bg-white w-full sm:w-auto"
+              >
+                <option value="">— No section</option>
+                {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                <option value="__new__">+ Add new section</option>
+              </select>
+            )}
           </div>
 
           {moveProjects.length > 0 && (

@@ -231,22 +231,6 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     requestAnimationFrame(() => { if (scrollRef.current) scrollRef.current.scrollTop = top; });
   }, [loading, projectId]);
 
-  // ESC closes task detail panel, then clears selection, then closes search
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        if (showAddTaskMenu) { setShowAddTaskMenu(false); return; }
-        if (openSectionMenu) { setOpenSectionMenu(null); return; }
-        if (showJiraMenu)    { setShowJiraMenu(false); return; }
-        if (selectedTaskId) { setSelectedTaskId(null); return; }
-        if (selectedIds.size > 0) { setSelectedIds(new Set()); return; }
-        if (showSearch) { setSearchQuery(""); setShowSearch(false); }
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [selectedTaskId, selectedIds, showSearch, showAddTaskMenu, openSectionMenu, showJiraMenu]);
-
   useEffect(() => {
     if (!openSectionMenu && !showAddTaskMenu) return;
     const close = (e: MouseEvent) => {
@@ -306,6 +290,50 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     else r = [...r].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
     return r;
   }, [tasks, activeFilters, sortKey, sortDir, searchQuery]);
+
+  // ESC closes task detail panel, then clears selection, then closes search.
+  // N creates a task and opens it, / focuses search, J/K move between tasks in the open task's section.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (showAddTaskMenu) { setShowAddTaskMenu(false); return; }
+        if (openSectionMenu) { setOpenSectionMenu(null); return; }
+        if (showJiraMenu)    { setShowJiraMenu(false); return; }
+        if (selectedTaskId) { setSelectedTaskId(null); return; }
+        if (selectedIds.size > 0) { setSelectedIds(new Set()); return; }
+        if (showSearch) { setSearchQuery(""); setShowSearch(false); }
+        return;
+      }
+
+      const target = e.target as HTMLElement;
+      const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable;
+      if (typing) return;
+
+      if (e.key === "n" || e.key === "N") {
+        e.preventDefault();
+        addTask(null, "").then(t => { if (t) setSelectedTaskId(t.id); });
+        return;
+      }
+      if (e.key === "/") {
+        e.preventDefault();
+        setShowSearch(true);
+        requestAnimationFrame(() => searchInputRef.current?.focus());
+        return;
+      }
+      if ((e.key === "j" || e.key === "J" || e.key === "k" || e.key === "K") && selectedTaskId) {
+        e.preventDefault();
+        const current = filteredTasks.find(t => t.id === selectedTaskId);
+        if (!current) return;
+        const sectionTasks = filteredTasks.filter(t => t.section_id === current.section_id);
+        const idx = sectionTasks.findIndex(t => t.id === selectedTaskId);
+        const isDown = e.key === "j" || e.key === "J";
+        const target2 = isDown ? sectionTasks[idx + 1] : sectionTasks[idx - 1];
+        if (target2) setSelectedTaskId(target2.id);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [selectedTaskId, selectedIds, showSearch, showAddTaskMenu, openSectionMenu, showJiraMenu, filteredTasks, addTask]);
 
   const lastClickedRef = useRef<string | null>(null);
 
@@ -589,6 +617,9 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
               )}
             </div>
           )}
+          <span className="text-xs text-[#6B6F76] px-1 whitespace-nowrap" title="Total tasks">
+            {filteredTasks.length}{filteredTasks.length !== tasks.length ? ` of ${tasks.length}` : ""} task{tasks.length !== 1 ? "s" : ""}
+          </span>
           <div className="relative">
             <button onClick={() => { setShowFilter(v => !v); setShowSort(false); }} className={`flex items-center gap-1 px-2.5 py-1.5 text-sm rounded transition-colors ${filterActive ? "text-[#4573D9] bg-[#EEF2FB]" : "text-[#6B6F76] hover:bg-[#F5F5F5]"}`}>
               <Filter size={14} /> Filter{filterActive ? " •" : ""}
@@ -1253,6 +1284,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
             onOpenTask={id => { setSelectedTaskId(id); }}
             addAttachment={addAttachment}
             removeAttachment={removeAttachment}
+            addSection={addSection}
             userEmail={userEmail}
             isAdmin={isAdmin}
           />
