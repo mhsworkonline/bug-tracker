@@ -20,6 +20,7 @@ export interface ProjectData {
   refresh: () => Promise<void>;
   updateProjectLocal: (p: Project) => void;
   addSection: (name?: string) => Promise<Section | null>;
+  addSections: (names: string[]) => Promise<Section[]>;
   updateSection: (id: string, name: string) => Promise<void>;
   deleteSection: (id: string) => Promise<void>;
   duplicateSection: (id: string) => Promise<void>;
@@ -95,6 +96,16 @@ export function useProject(projectId: string, userEmail?: string): ProjectData {
     if (error || !data) return null;
     setSections(prev => [...prev, data]);
     logActivity(projectId, "section_created", { section_name: name }, undefined, userEmail);
+    return data;
+  }, [projectId, sections.length, userEmail]);
+
+  const addSections = useCallback(async (names: string[]): Promise<Section[]> => {
+    const startPos = sections.length;
+    const rows = names.map((name, i) => ({ project_id: projectId, name, position: startPos + i }));
+    const { data, error } = await supabase.from("BT_sections").insert(rows).select();
+    if (error || !data) return [];
+    setSections(prev => [...prev, ...data]);
+    for (const s of data) logActivity(projectId, "section_created", { section_name: s.name }, undefined, userEmail);
     return data;
   }, [projectId, sections.length, userEmail]);
 
@@ -290,7 +301,7 @@ export function useProject(projectId: string, userEmail?: string): ProjectData {
     project, sections, tasks, columnConfigs, loading, error,
     refresh: load,
     updateProjectLocal,
-    addSection, updateSection, deleteSection, duplicateSection,
+    addSection, addSections, updateSection, deleteSection, duplicateSection,
     addTask, duplicateTask, updateTask, toggleTask, deleteTask,
     addAttachment, removeAttachment,
     updateColumnConfig,

@@ -115,7 +115,7 @@ export default function TaskList({ projectId, userEmail }: { projectId: string; 
   const {
     project, sections, tasks, columnConfigs, loading, error,
     updateProjectLocal,
-    addSection, updateSection, deleteSection, duplicateSection,
+    addSection, addSections, updateSection, deleteSection, duplicateSection,
     addTask, updateTask, toggleTask, duplicateTask, deleteTask,
     addAttachment, removeAttachment,
     updateColumnConfig,
@@ -165,6 +165,8 @@ export default function TaskList({ projectId, userEmail }: { projectId: string; 
   const [projectMenuPos, setProjectMenuPos]   = useState({ top: 0, left: 0 });
   const [searchQuery, setSearchQuery]         = useState("");
   const [showSearch, setShowSearch]           = useState(false);
+  const [showBulkSections, setShowBulkSections] = useState(false);
+  const [bulkSectionsText, setBulkSectionsText] = useState("");
 
   const [activeFilters, setActiveFilters] = useState<ActiveFilters>(DEFAULT_FILTERS);
   const [sortKey, setSortKey]             = useState<SortKey>("none");
@@ -1253,15 +1255,51 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
         })}
 
         {/* Add section */}
-        <div className="px-6 py-3">
+        <div className="px-6 py-3 flex items-center gap-4">
           <button
             onClick={async () => { const s = await addSection(); if (s) { setRenamingSection(s.id); setSectionNameDraft(s.name); } }}
             className="flex items-center gap-1.5 text-sm text-[#6B6F76] hover:text-[#151B26]"
           >
             <Plus size={14} /> Add section
           </button>
+          <button
+            onClick={() => setShowBulkSections(true)}
+            className="flex items-center gap-1.5 text-sm text-[#6B6F76] hover:text-[#151B26]"
+          >
+            <Plus size={14} /> Add multiple sections
+          </button>
         </div>
       </div>}
+
+      {/* Bulk add sections modal */}
+      {showBulkSections && (
+        <div className="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center" onClick={() => setShowBulkSections(false)}>
+          <div className="bg-white rounded-xl shadow-xl p-6 w-[420px]" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-[#151B26] mb-2">Add multiple sections</h3>
+            <p className="text-sm text-[#6B6F76] mb-3">One section name per line.</p>
+            <textarea
+              autoFocus
+              value={bulkSectionsText}
+              onChange={e => setBulkSectionsText(e.target.value)}
+              rows={8}
+              placeholder={"To Do\nIn Progress\nDone"}
+              className="w-full text-sm border border-[#E8E8E9] rounded-lg px-3 py-2 outline-none focus:border-[#4573D9] resize-none"
+            />
+            <div className="flex gap-2 justify-end mt-4">
+              <button onClick={() => { setShowBulkSections(false); setBulkSectionsText(""); }} className="px-4 py-1.5 border border-[#E8E8E9] text-sm text-[#151B26] rounded-md hover:bg-[#FAFBFC]">Cancel</button>
+              <button
+                onClick={async () => {
+                  const names = bulkSectionsText.split("\n").map(n => n.trim()).filter(Boolean);
+                  if (!names.length) return;
+                  await addSections(names);
+                  setShowBulkSections(false); setBulkSectionsText("");
+                }}
+                className="px-4 py-1.5 bg-[#4573D9] text-white text-sm rounded-md hover:bg-[#3F65C4]"
+              >Create</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Panels */}
       {selectedTaskId && (() => {
