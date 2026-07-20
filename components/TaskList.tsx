@@ -116,7 +116,7 @@ export default function TaskList({ projectId, userEmail }: { projectId: string; 
     project, sections, tasks, columnConfigs, loading, error,
     updateProjectLocal,
     addSection, addSections, updateSection, deleteSection, duplicateSection,
-    addTask, updateTask, toggleTask, duplicateTask, deleteTask,
+    addTask, updateTask, updateTaskLocal, toggleTask, duplicateTask, deleteTask,
     addAttachment, removeAttachment,
     updateColumnConfig,
   } = useProject(projectId, userEmail);
@@ -293,6 +293,8 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     return r;
   }, [tasks, activeFilters, sortKey, sortDir, searchQuery]);
 
+  const lastClickedRef = useRef<string | null>(null);
+
   // ESC closes task detail panel, then clears selection, then closes search.
   // N creates a task and opens it, / focuses search, J/K move between tasks in the open task's section.
   useEffect(() => {
@@ -307,13 +309,26 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
         return;
       }
 
+      const createTask = () => {
+        const activeId = selectedTaskId ?? lastClickedRef.current;
+        const activeTask = activeId ? tasks.find(t => t.id === activeId) : null;
+        addTask(activeTask?.section_id ?? null, "").then(t => { if (t) setSelectedTaskId(t.id); });
+      };
+
+      // Alt+N always creates a task, regardless of what's focused
+      if (e.altKey && (e.key === "n" || e.key === "N")) {
+        e.preventDefault();
+        createTask();
+        return;
+      }
+
       const target = e.target as HTMLElement;
       const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable;
       if (typing) return;
 
       if (e.key === "n" || e.key === "N") {
         e.preventDefault();
-        addTask(null, "").then(t => { if (t) setSelectedTaskId(t.id); });
+        createTask();
         return;
       }
       if (e.key === "/") {
@@ -335,9 +350,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [selectedTaskId, selectedIds, showSearch, showAddTaskMenu, openSectionMenu, showJiraMenu, filteredTasks, addTask]);
-
-  const lastClickedRef = useRef<string | null>(null);
+  }, [selectedTaskId, selectedIds, showSearch, showAddTaskMenu, openSectionMenu, showJiraMenu, filteredTasks, tasks, addTask]);
 
   const orderedTaskIds = useMemo(() => {
     const unsectioned = filteredTasks.filter(t => !t.section_id).map(t => t.id);
@@ -1315,6 +1328,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
             sections={sections}
             onClose={() => setSelectedTaskId(null)}
             updateTask={updateTask}
+            updateTaskLocal={updateTaskLocal}
             toggleTask={toggleTask}
             duplicateTask={duplicateTask}
             deleteTask={deleteTask}

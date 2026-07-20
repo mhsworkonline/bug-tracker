@@ -27,6 +27,7 @@ export interface ProjectData {
   addTask: (sectionId: string | null, name: string, dueDate?: string, parentTaskId?: string) => Promise<Task | null>;
   duplicateTask: (taskId: string) => Promise<Task | null>;
   updateTask: (taskId: string, updates: Partial<Omit<Task, "id" | "project_id" | "created_at">>) => Promise<void>;
+  updateTaskLocal: (taskId: string, updates: Partial<Omit<Task, "id" | "project_id" | "created_at">>) => void;
   toggleTask: (taskId: string) => Promise<void>;
   deleteTask: (taskId: string) => Promise<void>;
   addAttachment: (taskId: string, att: Omit<Attachment, "id" | "task_id" | "uploaded_at">) => Promise<void>;
@@ -214,6 +215,11 @@ export function useProject(projectId: string, userEmail?: string): ProjectData {
     }
   }, [tasks, projectId, userEmail]);
 
+  // Local-only optimistic update — no DB write, no activity log. For live in-progress typing (e.g. title) to reflect instantly in the list without spamming saves per keystroke.
+  const updateTaskLocal = useCallback((taskId: string, updates: Partial<Omit<Task, "id" | "project_id" | "created_at">>) => {
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updates } : t));
+  }, []);
+
   const toggleTask = useCallback(async (taskId: string) => {
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
@@ -302,7 +308,7 @@ export function useProject(projectId: string, userEmail?: string): ProjectData {
     refresh: load,
     updateProjectLocal,
     addSection, addSections, updateSection, deleteSection, duplicateSection,
-    addTask, duplicateTask, updateTask, toggleTask, deleteTask,
+    addTask, duplicateTask, updateTask, updateTaskLocal, toggleTask, deleteTask,
     addAttachment, removeAttachment,
     updateColumnConfig,
   };

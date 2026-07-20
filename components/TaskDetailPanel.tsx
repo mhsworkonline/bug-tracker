@@ -25,6 +25,7 @@ interface Props {
   sections: Section[];
   onClose: () => void;
   updateTask: ProjectData["updateTask"];
+  updateTaskLocal: ProjectData["updateTaskLocal"];
   toggleTask: ProjectData["toggleTask"];
   duplicateTask: ProjectData["duplicateTask"];
   deleteTask: ProjectData["deleteTask"];
@@ -80,7 +81,7 @@ async function pngToJpeg(blob: Blob, quality = 0.85): Promise<Blob> {
 
 export default function TaskDetailPanel({
   task, tasks, projectId, projectName, projectColor, sections, onClose,
-  updateTask, toggleTask, duplicateTask, deleteTask, addTask, onOpenTask,
+  updateTask, updateTaskLocal, toggleTask, duplicateTask, deleteTask, addTask, onOpenTask,
   addAttachment, removeAttachment, addSection, userEmail, isAdmin = false, standalone = false,
 }: Props) {
   const { lockPriorities, requireAssigneeApproval } = useAdminSettings();
@@ -88,7 +89,7 @@ export default function TaskDetailPanel({
   const taskIndex = sectionTasks.findIndex(t => t.id === task.id);
   const prevTask  = taskIndex > 0 ? sectionTasks[taskIndex - 1] : null;
   const nextTask  = taskIndex < sectionTasks.length - 1 ? sectionTasks[taskIndex + 1] : null;
-  const [editingTitle, setEditingTitle]   = useState(true);
+  const [editingTitle, setEditingTitle]   = useState(!task.name);
   const [titleDraft, setTitleDraft]       = useState(task.name);
   const [uploading, setUploading]         = useState(false);
   const [members, setMembers]             = useState<{ id: string; email: string; name?: string | null }[]>([]);
@@ -637,11 +638,12 @@ export default function TaskDetailPanel({
               rows={1}
               onChange={e => {
                 setTitleDraft(e.target.value);
+                updateTaskLocal(task.id, { name: e.target.value });
                 e.target.style.height = "auto";
                 e.target.style.height = e.target.scrollHeight + "px";
               }}
               onFocus={e => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
-              onBlur={saveTitle}
+              onBlur={() => { if (document.hasFocus()) saveTitle(); }}
               onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); saveTitle(); } }}
               className="w-full text-2xl font-bold text-[#151B26] outline-none border-b-2 border-[#4573D9] mb-4 bg-transparent resize-none overflow-hidden leading-tight"
             />
@@ -824,6 +826,51 @@ export default function TaskDetailPanel({
             />
           </div>
 
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold text-[#151B26]">
+                Attachments
+                {attachments.length > 0 && <span className="ml-2 text-xs bg-[#E8E8E9] text-[#6B6F76] rounded-full px-1.5 py-0.5">{attachments.length}</span>}
+              </h3>
+              <button onClick={() => fileInputRef.current?.click()} disabled={uploading} className="p-1 text-[#6B6F76] hover:bg-[#F5F5F5] rounded disabled:opacity-50">
+                {uploading ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+              </button>
+            </div>
+            <input ref={fileInputRef} type="file" multiple accept="image/*,video/*,application/pdf" className="sr-only" onChange={handleFileSelect} />
+            {uploadError && (
+              <div className="flex items-center justify-between gap-2 px-3 py-2 mb-2 bg-red-50 border border-red-200 rounded text-xs text-red-600">
+                <span>{uploadError}</span>
+                <button onClick={() => setUploadError(null)} className="flex-shrink-0 text-red-400 hover:text-red-600"><X size={12} /></button>
+              </div>
+            )}
+            {attachments.length === 0 && !uploading ? (
+              <button onClick={() => fileInputRef.current?.click()} className="w-full flex items-center justify-center gap-2 py-4 border-2 border-dashed border-[#E8E8E9] rounded text-sm text-[#6B6F76] hover:border-[#4573D9] hover:text-[#4573D9] transition-colors">
+                <Paperclip size={14} /> Click, drag & drop, or paste (Ctrl+V)
+              </button>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {attachments.map(att => (
+                  <div key={att.id} className="flex items-center gap-3 p-2 border border-[#E8E8E9] rounded hover:bg-[#FAFBFC] group">
+                    {att.file_type.startsWith("image/")
+                      ? <img src={att.url} alt={att.name} className="w-10 h-10 object-cover rounded flex-shrink-0" />
+                      : <div className="w-10 h-10 bg-[#F5F5F5] rounded flex items-center justify-center flex-shrink-0">{fileIcon(att.file_type)}</div>
+                    }
+                    <div className="flex-1 min-w-0">
+                      <a href={att.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-[#151B26] hover:underline truncate block">{att.name}</a>
+                      <p className="text-xs text-[#6B6F76]">{fmtBytes(att.size)}</p>
+                    </div>
+                    <button onClick={() => removeAttachment(att.id, task.id, att.url)} className="p-1 text-[#6B6F76] hover:text-red-500 rounded opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14} /></button>
+                  </div>
+                ))}
+                {uploading && (
+                  <div className="flex items-center gap-2 p-2 border border-dashed border-[#E8E8E9] rounded text-sm text-[#6B6F76]">
+                    <Loader2 size={14} className="animate-spin" /> Uploading…
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Subtasks */}
           <div className="mb-6">
             <div className="flex items-center gap-2 mb-2">
@@ -939,51 +986,6 @@ export default function TaskDetailPanel({
               placeholder="What is this task about?"
               className="w-full min-h-[100px] text-sm text-[#151B26] placeholder-[#6B6F76] border border-transparent hover:border-[#E8E8E9] focus:border-[#4573D9] outline-none rounded p-2 resize-none bg-transparent"
             />
-          </div>
-
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-semibold text-[#151B26]">
-                Attachments
-                {attachments.length > 0 && <span className="ml-2 text-xs bg-[#E8E8E9] text-[#6B6F76] rounded-full px-1.5 py-0.5">{attachments.length}</span>}
-              </h3>
-              <button onClick={() => fileInputRef.current?.click()} disabled={uploading} className="p-1 text-[#6B6F76] hover:bg-[#F5F5F5] rounded disabled:opacity-50">
-                {uploading ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-              </button>
-            </div>
-            <input ref={fileInputRef} type="file" multiple accept="image/*,video/*,application/pdf" className="sr-only" onChange={handleFileSelect} />
-            {uploadError && (
-              <div className="flex items-center justify-between gap-2 px-3 py-2 mb-2 bg-red-50 border border-red-200 rounded text-xs text-red-600">
-                <span>{uploadError}</span>
-                <button onClick={() => setUploadError(null)} className="flex-shrink-0 text-red-400 hover:text-red-600"><X size={12} /></button>
-              </div>
-            )}
-            {attachments.length === 0 && !uploading ? (
-              <button onClick={() => fileInputRef.current?.click()} className="w-full flex items-center justify-center gap-2 py-4 border-2 border-dashed border-[#E8E8E9] rounded text-sm text-[#6B6F76] hover:border-[#4573D9] hover:text-[#4573D9] transition-colors">
-                <Paperclip size={14} /> Click, drag & drop, or paste (Ctrl+V)
-              </button>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {attachments.map(att => (
-                  <div key={att.id} className="flex items-center gap-3 p-2 border border-[#E8E8E9] rounded hover:bg-[#FAFBFC] group">
-                    {att.file_type.startsWith("image/")
-                      ? <img src={att.url} alt={att.name} className="w-10 h-10 object-cover rounded flex-shrink-0" />
-                      : <div className="w-10 h-10 bg-[#F5F5F5] rounded flex items-center justify-center flex-shrink-0">{fileIcon(att.file_type)}</div>
-                    }
-                    <div className="flex-1 min-w-0">
-                      <a href={att.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-[#151B26] hover:underline truncate block">{att.name}</a>
-                      <p className="text-xs text-[#6B6F76]">{fmtBytes(att.size)}</p>
-                    </div>
-                    <button onClick={() => removeAttachment(att.id, task.id, att.url)} className="p-1 text-[#6B6F76] hover:text-red-500 rounded opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14} /></button>
-                  </div>
-                ))}
-                {uploading && (
-                  <div className="flex items-center gap-2 p-2 border border-dashed border-[#E8E8E9] rounded text-sm text-[#6B6F76]">
-                    <Loader2 size={14} className="animate-spin" /> Uploading…
-                  </div>
-                )}
-              </div>
-            )}
           </div>
 
           <div className="mb-6">

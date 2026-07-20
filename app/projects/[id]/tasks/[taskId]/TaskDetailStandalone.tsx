@@ -40,6 +40,11 @@ export default function TaskDetailStandalone({ projectId, taskId, userEmail }: P
     await supabase.from("BT_tasks").update({ ...updates, updated_at: new Date().toISOString() }).eq("id", id);
   };
 
+  const updateTaskLocal: ProjectData["updateTaskLocal"] = (id, updates) => {
+    setTask(prev => prev ? { ...prev, ...updates } : prev);
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+  };
+
   const toggleTask: ProjectData["toggleTask"] = async (id) => {
     const t = tasks.find(x => x.id === id);
     if (!t) return;
@@ -99,6 +104,7 @@ export default function TaskDetailStandalone({ projectId, taskId, userEmail }: P
           sections={sections}
           onClose={() => router.push(`/projects/${projectId}`)}
           updateTask={updateTask}
+          updateTaskLocal={updateTaskLocal}
           toggleTask={toggleTask}
           duplicateTask={duplicateTask}
           deleteTask={deleteTask}
