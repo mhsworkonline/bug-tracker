@@ -111,6 +111,8 @@ export default function TaskDetailPanel({
   const [addingSection, setAddingSection] = useState(false);
   const [newSectionName, setNewSectionName] = useState("");
   const titleRef = useRef<HTMLTextAreaElement>(null);
+  const titleSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (titleSaveTimer.current) clearTimeout(titleSaveTimer.current); }, []);
   const [isDragging, setIsDragging]       = useState(false);
   const [uploadError, setUploadError]     = useState<string | null>(null);
   const [activeTab, setActiveTab]         = useState<"activity" | "comments">("activity");
@@ -271,6 +273,7 @@ export default function TaskDetailPanel({
   }, [editingTitle]);
 
   const saveTitle = () => {
+    if (titleSaveTimer.current) clearTimeout(titleSaveTimer.current);
     const v = titleDraft.trim();
     if (v && v !== task.name) updateTask(task.id, { name: v });
     setEditingTitle(false);
@@ -432,6 +435,7 @@ export default function TaskDetailPanel({
 
   // Commit saves unsaved title; deletes task if truly empty. Used on every exit path.
   const commitOrDelete = () => {
+    if (titleSaveTimer.current) clearTimeout(titleSaveTimer.current);
     const name = titleDraft.trim();
     if (name && name !== task.name) updateTask(task.id, { name });
     if (!name && !task.description?.trim() && attachments.length === 0) deleteTask(task.id);
@@ -637,10 +641,16 @@ export default function TaskDetailPanel({
               value={titleDraft}
               rows={1}
               onChange={e => {
-                setTitleDraft(e.target.value);
-                updateTaskLocal(task.id, { name: e.target.value });
+                const v = e.target.value;
+                setTitleDraft(v);
+                updateTaskLocal(task.id, { name: v });
                 e.target.style.height = "auto";
                 e.target.style.height = e.target.scrollHeight + "px";
+                if (titleSaveTimer.current) clearTimeout(titleSaveTimer.current);
+                titleSaveTimer.current = setTimeout(() => {
+                  const trimmed = v.trim();
+                  if (trimmed) updateTask(task.id, { name: trimmed });
+                }, 400);
               }}
               onFocus={e => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
               onBlur={() => { if (document.hasFocus()) saveTitle(); }}

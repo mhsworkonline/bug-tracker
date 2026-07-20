@@ -309,7 +309,12 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
         return;
       }
 
+      // Force any pending edit (e.g. an unsaved title draft) to commit via its blur handler
+      // before we swap selectedTaskId — switching tasks via keyboard never fires a natural blur.
+      const flushPendingEdit = () => { (document.activeElement as HTMLElement | null)?.blur(); };
+
       const createTask = () => {
+        flushPendingEdit();
         const activeId = selectedTaskId ?? lastClickedRef.current;
         const activeTask = activeId ? tasks.find(t => t.id === activeId) : null;
         addTask(activeTask?.section_id ?? null, "").then(t => { if (t) setSelectedTaskId(t.id); });
@@ -345,7 +350,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
         const idx = sectionTasks.findIndex(t => t.id === selectedTaskId);
         const isDown = e.key === "j" || e.key === "J";
         const target2 = isDown ? sectionTasks[idx + 1] : sectionTasks[idx - 1];
-        if (target2) setSelectedTaskId(target2.id);
+        if (target2) { flushPendingEdit(); setSelectedTaskId(target2.id); }
       }
     };
     window.addEventListener("keydown", handler);
