@@ -41,7 +41,7 @@ type JiraExportResult = { taskId?: string; taskName?: string; jiraKey?: string; 
 type JiraSyncResult   = { taskId?: string; taskName?: string; jiraKey?: string; updated?: boolean; checked?: boolean; unlinked?: boolean; error?: string };
 
 // A failing task stays pending, so it is retried in every batch and appears in the results
-// once per attempt. Collapse by taskId so counts reflect distinct tasks, not attempts â€”
+// once per attempt. Collapse by taskId so counts reflect distinct tasks, not attempts —
 // otherwise 11 dead issues over 5 batches get reported as "55 failed".
 type JiraRow = { taskId?: string; taskName?: string; error?: string };
 function distinctFailures<T extends JiraRow>(rows: T[]): T[] {
@@ -59,9 +59,9 @@ function describeJiraFailures(rows: JiraRow[]): string {
   const failed = distinctFailures(rows);
   if (!failed.length) return "";
   const shown = failed.slice(0, 5)
-    .map(r => `â€¢ ${(r.taskName ?? "Untitled").slice(0, 60)} â€” ${r.error}`)
+    .map(r => `• ${(r.taskName ?? "Untitled").slice(0, 60)} — ${r.error}`)
     .join("\n");
-  return `\n\nFailures:\n${shown}${failed.length > 5 ? `\nâ€¦and ${failed.length - 5} more` : ""}`;
+  return `\n\nFailures:\n${shown}${failed.length > 5 ? `\n…and ${failed.length - 5} more` : ""}`;
 }
 
 function getWeekRange(offset = 0) {
@@ -151,7 +151,7 @@ export default function TaskList({ projectId, userEmail }: { projectId: string; 
   } = useProject(projectId, userEmail);
 
   useEffect(() => {
-    document.title = project?.name ? `${project.name} â€” Bug Tracker` : "Bug Tracker";
+    document.title = project?.name ? `${project.name} — Bug Tracker` : "Bug Tracker";
     return () => { document.title = "Bug Tracker"; };
   }, [project?.name]);
 
@@ -339,7 +339,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
       }
 
       // Force any pending edit (e.g. an unsaved title draft) to commit via its blur handler
-      // before we swap selectedTaskId â€” switching tasks via keyboard never fires a natural blur.
+      // before we swap selectedTaskId — switching tasks via keyboard never fires a natural blur.
       const flushPendingEdit = () => { (document.activeElement as HTMLElement | null)?.blur(); };
 
       const createTask = () => {
@@ -545,7 +545,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
 
   if (loading) return (
     <div className="flex items-center justify-center h-full gap-2 text-[#6B6F76] text-sm">
-      <Loader2 size={16} className="animate-spin" /> Loadingâ€¦
+      <Loader2 size={16} className="animate-spin" /> Loading…
     </div>
   );
   if (error || !project) return (
@@ -579,7 +579,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                   <button key={s.key} onClick={() => handleSetStatus(s.key)} className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-[#F5F5F5]">
                     <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
                     <span style={{ color: s.color }}>{s.label}</span>
-                    {projectStatus === s.key && <span className="ml-auto text-[#4573D9]">âœ“</span>}
+                    {projectStatus === s.key && <span className="ml-auto text-[#4573D9]">✓</span>}
                   </button>
                 ))}
               </div>
@@ -694,7 +694,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                 autoFocus
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search tasksâ€¦"
+                placeholder="Search tasks…"
                 className="text-sm outline-none text-[#151B26] placeholder-[#9EA3AA] w-40"
               />
               {searchQuery && (
@@ -707,13 +707,13 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
           </span>
           <div className="relative">
             <button onClick={() => { setShowFilter(v => !v); setShowSort(false); }} className={`flex items-center gap-1 px-2.5 py-1.5 text-sm rounded transition-colors ${filterActive ? "text-[#4573D9] bg-[#EEF2FB]" : "text-[#6B6F76] hover:bg-[#F5F5F5]"}`}>
-              <Filter size={14} /> Filter{filterActive ? " â€¢" : ""}
+              <Filter size={14} /> Filter{filterActive ? " •" : ""}
             </button>
             {showFilter && <FilterPanel filters={activeFilters} onChange={setActiveFilters} onClose={() => setShowFilter(false)} members={members} />}
           </div>
           <div className="relative">
             <button onClick={() => { setShowSort(v => !v); setShowFilter(false); }} className={`flex items-center gap-1 px-2.5 py-1.5 text-sm rounded transition-colors ${sortKey !== "none" ? "text-[#4573D9] bg-[#EEF2FB]" : "text-[#6B6F76] hover:bg-[#F5F5F5]"}`}>
-              <ArrowUpDown size={14} /> Sort{sortKey !== "none" ? " â€¢" : ""}
+              <ArrowUpDown size={14} /> Sort{sortKey !== "none" ? " •" : ""}
             </button>
             {showSort && <SortDropdown current={sortKey} onChange={setSortKey} onClose={() => setShowSort(false)} />}
           </div>
@@ -736,7 +736,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
               title="Jira integration"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M11.571 11.429L6.857 6.714A6 6 0 0112 2a6 6 0 015.143 9.143L12 16.286l-5.143-4.857z" fill="#2684FF"/><path d="M12.429 12.571l4.714 4.715A6 6 0 0112 22a6 6 0 01-5.143-9.143L12 7.714l5.143 4.857z" fill="#2684FF" opacity=".5"/></svg>
-              {jiraWorking ? "Workingâ€¦" : "Jira"}
+              {jiraWorking ? "Working…" : "Jira"}
             </button>
             {showJiraMenu && (
               <div className="absolute right-0 top-full mt-1 bg-white border border-[#E8E8E9] rounded-lg shadow-lg py-1 w-60 z-50">
@@ -746,7 +746,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                   {jiraKeyInput === null ? (
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-mono text-[#151B26] flex-1">
-                        {project?.jira_project_key ?? <span className="text-red-500 italic text-xs font-sans">Not set â€” export blocked</span>}
+                        {project?.jira_project_key ?? <span className="text-red-500 italic text-xs font-sans">Not set — export blocked</span>}
                       </span>
                       <button onClick={() => setJiraKeyInput(project?.jira_project_key ?? "")} className="text-xs text-[#4573D9] hover:underline">
                         {project?.jira_project_key ? "Change" : "Set"}
@@ -877,7 +877,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
             className="hidden sm:flex items-center gap-1 px-2 py-1.5 text-xs text-[#9EA3AA] border border-[#E8E8E9] rounded hover:bg-[#F5F5F5]"
             title="Global search"
           >
-            <Search size={11} /> <kbd className="text-[10px]">âŒ˜K</kbd>
+            <Search size={11} /> <kbd className="text-[10px]">⌘K</kbd>
           </button>
         </div>
       </div>
@@ -909,19 +909,19 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                 "Export selected tasks to Jira",
                 (jiraName, jiraKey) => `This will create a new Jira issue for ${ids.length} selected task${ids.length !== 1 ? "s" : ""} in Jira project "${jiraName}" (${jiraKey}). Tasks already linked to Jira will be skipped.`,
                 async () => {
-                  setJiraLoadingMsg("Exporting selected tasks to Jiraâ€¦");
+                  setJiraLoadingMsg("Exporting selected tasks to Jira…");
                   try {
                     const { rows, stalled } = await runJiraBatches<JiraExportResult>(
                       "/api/jira/export",
                       { task_ids: ids },
-                      (done, total) => `Exporting selected tasks to Jiraâ€¦ ${done} of ${total}`,
+                      (done, total) => `Exporting selected tasks to Jira… ${done} of ${total}`,
                       batch => batch.filter(r => r.created).length,
                     );
                     const created = rows.filter(r => r.created).length;
                     const failed  = distinctFailures(rows).length;
                     const parts: string[] = [`${created} new issue${created !== 1 ? "s" : ""} created`];
                     if (failed)  parts.push(`${failed} failed`);
-                    if (stalled) parts.push("stopped early â€” remaining tasks kept failing");
+                    if (stalled) parts.push("stopped early — remaining tasks kept failing");
                     alert(`Export complete. ${parts.join(", ")}.${describeJiraFailures(rows)}`);
                   } catch (e) {
                     alert(e instanceof Error ? e.message : "Export failed.");
@@ -1017,9 +1017,9 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                     <>
                       <span className={`min-w-0 truncate cursor-text flex items-center gap-1 ${task.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`}
                         onClick={e => { if (!task.name) return; e.stopPropagation(); setEditingTaskId(task.id); setEditingTaskName(task.name); }}>
-                        {task.is_milestone && <span className="text-amber-500 text-[10px] flex-shrink-0">â—†</span>}
+                        {task.is_milestone && <span className="text-amber-500 text-[10px] flex-shrink-0">◆</span>}
                         {task.name}
-                        {task.jira_has_updates && <span title="Updated in Jira â€” open to review" className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0 inline-block" />}
+                        {task.jira_has_updates && <span title="Updated in Jira — open to review" className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0 inline-block" />}
                       </span>
                       <span className="sm:hidden text-[10px] text-[#6B6F76] bg-[#F3F4F6] px-1.5 py-0.5 rounded w-fit">{task.status?.replace(/_/g," ")}</span>
                     </>
@@ -1079,7 +1079,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                 onMouseLeave={() => { if (openSectionMenu !== section.id) setHoveredSection(null); }}
               >
                 <button onClick={() => toggleCollapse(section.id)} className="mr-1.5 text-[#6B6F76] hover:text-[#151B26] flex-shrink-0 text-[10px] leading-none">
-                  {collapsed ? "â–¶" : "â–¼"}
+                  {collapsed ? "▶" : "▼"}
                 </button>
                 {renamingSection === section.id ? (
                   <input
@@ -1147,7 +1147,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                       >
                         <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3.5h10M5 3.5V2.5a.5.5 0 01.5-.5h3a.5.5 0 01.5.5v1M11.5 3.5l-.8 8a1 1 0 01-1 .9H4.3a1 1 0 01-1-.9l-.8-8" stroke="#E5534B" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                         Delete section
-                        <span className="ml-auto text-[10px] text-[#B0B3B8]">tasks â†’ default</span>
+                        <span className="ml-auto text-[10px] text-[#B0B3B8]">tasks → default</span>
                       </button>
                     </div>
                   )}
@@ -1186,7 +1186,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                       )}
                     </div>
 
-                    {/* Task name column: click text = inline edit, â€º button = open detail */}
+                    {/* Task name column: click text = inline edit, › button = open detail */}
                     <div className="flex-1 text-sm min-w-0 py-1 flex items-center sm:border-r border-[#E8E8E9]">
                       <div
                         className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-0.5 cursor-pointer pr-1"
@@ -1211,10 +1211,10 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                               onClick={e => { if (!task.name) return; e.stopPropagation(); setEditingTaskId(task.id); setEditingTaskName(task.name); }}
                             >
                               {task.name}
-                              {task.jira_has_updates && <span title="Updated in Jira â€” open to review" className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0 inline-block" />}
+                              {task.jira_has_updates && <span title="Updated in Jira — open to review" className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0 inline-block" />}
                             </span>
                             {(task.BT_attachments?.length ?? 0) > 0 && (
-                              <span className="text-xs text-[#6B6F76] shrink-0" onClick={e => e.stopPropagation()}>ðŸ“Ž {task.BT_attachments!.length}</span>
+                              <span className="text-xs text-[#6B6F76] shrink-0" onClick={e => e.stopPropagation()}>📎 {task.BT_attachments!.length}</span>
                             )}
                             <span className="sm:hidden text-[10px] text-[#6B6F76] bg-[#F3F4F6] px-1.5 py-0.5 rounded w-fit">{task.status?.replace(/_/g," ")}</span>
                           </>
