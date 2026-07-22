@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
@@ -34,6 +34,35 @@ import InboxPanel from "@/components/InboxPanel";
 import ShareProjectModal from "@/components/ShareProjectModal";
 
 const TABS = ["List","Board","Calendar","Gantt","Dashboard"];
+
+// Shapes returned by the /api/jira/* routes. `created` vs `skipped` matters:
+// counting skipped rows as created is what made the old totals wrong.
+type JiraExportResult = { taskId?: string; taskName?: string; jiraKey?: string; created?: boolean; updated?: boolean; unlinked?: boolean; degraded?: boolean; statusPushed?: string; error?: string };
+type JiraSyncResult   = { taskId?: string; taskName?: string; jiraKey?: string; updated?: boolean; checked?: boolean; unlinked?: boolean; error?: string };
+
+// A failing task stays pending, so it is retried in every batch and appears in the results
+// once per attempt. Collapse by taskId so counts reflect distinct tasks, not attempts â€”
+// otherwise 11 dead issues over 5 batches get reported as "55 failed".
+type JiraRow = { taskId?: string; taskName?: string; error?: string };
+function distinctFailures<T extends JiraRow>(rows: T[]): T[] {
+  const seen = new Map<string, T>();
+  for (const r of rows) {
+    if (!r.error) continue;
+    seen.set(r.taskId ?? r.taskName ?? String(seen.size), r);
+  }
+  return [...seen.values()];
+}
+
+// Failures were only ever reported as a count, which made them impossible to act on.
+// Show what actually went wrong, capped so the dialog stays readable.
+function describeJiraFailures(rows: JiraRow[]): string {
+  const failed = distinctFailures(rows);
+  if (!failed.length) return "";
+  const shown = failed.slice(0, 5)
+    .map(r => `â€¢ ${(r.taskName ?? "Untitled").slice(0, 60)} â€” ${r.error}`)
+    .join("\n");
+  return `\n\nFailures:\n${shown}${failed.length > 5 ? `\nâ€¦and ${failed.length - 5} more` : ""}`;
+}
 
 function getWeekRange(offset = 0) {
   const now = new Date(), day = now.getDay();
@@ -122,7 +151,7 @@ export default function TaskList({ projectId, userEmail }: { projectId: string; 
   } = useProject(projectId, userEmail);
 
   useEffect(() => {
-    document.title = project?.name ? `${project.name} — Bug Tracker` : "Bug Tracker";
+    document.title = project?.name ? `${project.name} â€” Bug Tracker` : "Bug Tracker";
     return () => { document.title = "Bug Tracker"; };
   }, [project?.name]);
 
@@ -310,7 +339,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
       }
 
       // Force any pending edit (e.g. an unsaved title draft) to commit via its blur handler
-      // before we swap selectedTaskId — switching tasks via keyboard never fires a natural blur.
+      // before we swap selectedTaskId â€” switching tasks via keyboard never fires a natural blur.
       const flushPendingEdit = () => { (document.activeElement as HTMLElement | null)?.blur(); };
 
       const createTask = () => {
@@ -435,6 +464,37 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     setTimeout(() => setTemplateSaved(false), 3000);
   };
 
+  // The Jira routes process one batch per request so they fit inside the serverless time
+  // limit. These runners keep calling until the server reports nothing left, updating the
+  // progress message as they go. Without this, a large project stops partway through.
+  const postJira = async (path: string, body: Record<string, unknown>) =>
+    (await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })).json();
+
+  const runJiraBatches = async <T,>(
+    path: string,
+    body: Record<string, unknown>,
+    progress: (done: number, total: number) => string,
+    countDone: (rows: T[]) => number,
+  ): Promise<{ rows: T[]; skipped: number; stalled: boolean }> => {
+    const rows: T[] = [];
+    let skipped = 0, done = 0, stalled = false;
+    for (let guard = 0; guard < 500; guard++) {
+      const json = await postJira(path, body);
+      if (json.error) { if (!rows.length) throw new Error(json.error); break; }
+      const batch = (json.results ?? []) as T[];
+      rows.push(...batch);
+      skipped = json.skipped ?? skipped;
+      const progressed = countDone(batch);
+      done += progressed;
+      const total = (json.pendingTotal ?? 0) + done - progressed;
+      setJiraLoadingMsg(progress(done, Math.max(total, done)));
+      if (!json.remaining) break;
+      // Nothing succeeded this round, so retrying would loop forever on the same failures.
+      if (progressed === 0) { stalled = true; break; }
+    }
+    return { rows, skipped, stalled };
+  };
+
   // Resolves the exact Jira project (key + name) this project exports to, and confirms with the user before proceeding
   const confirmJiraProject = async (
     title: string,
@@ -445,7 +505,12 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     const res = await fetch(`/api/jira/resolve-project?project_id=${projectId}`);
     const resolved = await res.json();
     setJiraWorking(false);
-    if (resolved.error) { alert(resolved.error); return; }
+    if (resolved.error) {
+      alert(resolved.error);
+      // Nothing can be sent without a key, so drop the user straight into the field.
+      if (resolved.needsKey) { setShowJiraMenu(true); setJiraKeyInput(project?.jira_project_key ?? ""); }
+      return;
+    }
     setJiraConfirm({ title, body: describe(resolved.name, resolved.key), action });
   };
 
@@ -480,7 +545,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
 
   if (loading) return (
     <div className="flex items-center justify-center h-full gap-2 text-[#6B6F76] text-sm">
-      <Loader2 size={16} className="animate-spin" /> Loading…
+      <Loader2 size={16} className="animate-spin" /> Loadingâ€¦
     </div>
   );
   if (error || !project) return (
@@ -514,7 +579,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                   <button key={s.key} onClick={() => handleSetStatus(s.key)} className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-[#F5F5F5]">
                     <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
                     <span style={{ color: s.color }}>{s.label}</span>
-                    {projectStatus === s.key && <span className="ml-auto text-[#4573D9]">✓</span>}
+                    {projectStatus === s.key && <span className="ml-auto text-[#4573D9]">âœ“</span>}
                   </button>
                 ))}
               </div>
@@ -629,7 +694,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                 autoFocus
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search tasks…"
+                placeholder="Search tasksâ€¦"
                 className="text-sm outline-none text-[#151B26] placeholder-[#9EA3AA] w-40"
               />
               {searchQuery && (
@@ -642,13 +707,13 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
           </span>
           <div className="relative">
             <button onClick={() => { setShowFilter(v => !v); setShowSort(false); }} className={`flex items-center gap-1 px-2.5 py-1.5 text-sm rounded transition-colors ${filterActive ? "text-[#4573D9] bg-[#EEF2FB]" : "text-[#6B6F76] hover:bg-[#F5F5F5]"}`}>
-              <Filter size={14} /> Filter{filterActive ? " •" : ""}
+              <Filter size={14} /> Filter{filterActive ? " â€¢" : ""}
             </button>
             {showFilter && <FilterPanel filters={activeFilters} onChange={setActiveFilters} onClose={() => setShowFilter(false)} members={members} />}
           </div>
           <div className="relative">
             <button onClick={() => { setShowSort(v => !v); setShowFilter(false); }} className={`flex items-center gap-1 px-2.5 py-1.5 text-sm rounded transition-colors ${sortKey !== "none" ? "text-[#4573D9] bg-[#EEF2FB]" : "text-[#6B6F76] hover:bg-[#F5F5F5]"}`}>
-              <ArrowUpDown size={14} /> Sort{sortKey !== "none" ? " •" : ""}
+              <ArrowUpDown size={14} /> Sort{sortKey !== "none" ? " â€¢" : ""}
             </button>
             {showSort && <SortDropdown current={sortKey} onChange={setSortKey} onClose={() => setShowSort(false)} />}
           </div>
@@ -671,17 +736,21 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
               title="Jira integration"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M11.571 11.429L6.857 6.714A6 6 0 0112 2a6 6 0 015.143 9.143L12 16.286l-5.143-4.857z" fill="#2684FF"/><path d="M12.429 12.571l4.714 4.715A6 6 0 0112 22a6 6 0 01-5.143-9.143L12 7.714l5.143 4.857z" fill="#2684FF" opacity=".5"/></svg>
-              {jiraWorking ? "Working…" : "Jira"}
+              {jiraWorking ? "Workingâ€¦" : "Jira"}
             </button>
             {showJiraMenu && (
               <div className="absolute right-0 top-full mt-1 bg-white border border-[#E8E8E9] rounded-lg shadow-lg py-1 w-60 z-50">
                 {/* Per-project Jira key */}
                 <div className="px-3 py-2 border-b border-[#F0F1F3]">
-                  <p className="text-xs text-[#6B6F76] mb-1.5">Jira project key for this project</p>
+                  <p className="text-xs text-[#6B6F76] mb-1.5">Jira space initials (project key)</p>
                   {jiraKeyInput === null ? (
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-mono text-[#151B26] flex-1">{project?.jira_project_key ?? <span className="text-[#9EA3AA] italic text-xs">Using global default</span>}</span>
-                      <button onClick={() => setJiraKeyInput(project?.jira_project_key ?? "")} className="text-xs text-[#4573D9] hover:underline">Change</button>
+                      <span className="text-sm font-mono text-[#151B26] flex-1">
+                        {project?.jira_project_key ?? <span className="text-red-500 italic text-xs font-sans">Not set â€” export blocked</span>}
+                      </span>
+                      <button onClick={() => setJiraKeyInput(project?.jira_project_key ?? "")} className="text-xs text-[#4573D9] hover:underline">
+                        {project?.jira_project_key ? "Change" : "Set"}
+                      </button>
                     </div>
                   ) : (
                     <div className="flex items-center gap-1.5">
@@ -696,7 +765,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                           if (e.key === "Enter") {
                             const val = jiraKeyInput.trim() || null;
                             await fetch("/api/projects/" + projectId + "/jira-key", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jira_project_key: val }) });
-                            if (project) project.jira_project_key = val;
+                            if (project) updateProjectLocal({ ...project, jira_project_key: val });
                             setJiraKeyInput(null);
                           }
                         }}
@@ -705,7 +774,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                         onClick={async () => {
                           const val = jiraKeyInput.trim() || null;
                           await fetch("/api/projects/" + projectId + "/jira-key", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jira_project_key: val }) });
-                          if (project) project.jira_project_key = val;
+                          if (project) updateProjectLocal({ ...project, jira_project_key: val });
                           setJiraKeyInput(null);
                         }}
                         className="px-2 py-1 bg-[#4573D9] text-white text-xs rounded"
@@ -717,79 +786,81 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                   onClick={() => {
                     setShowJiraMenu(false);
                     confirmJiraProject(
-                      "Export project to Jira",
-                      (jiraName, jiraKey) => `This will create a new Jira issue for every task in "${project?.name}" that hasn't been exported yet, in Jira project "${jiraName}" (${jiraKey}). Tasks already linked to Jira will be skipped. This may take a moment for large projects.`,
+                      "Export to Jira",
+                      (jiraName, jiraKey) => `Everything in "${project?.name}" will be sent to Jira project "${jiraName}" (${jiraKey}).\n\nNew tasks are created as Jira issues, and tasks changed here since the last export are updated — title, status, priority, due date, description, attachments and section label.\n\nTasks that have not changed are skipped.`,
                       async () => {
-                        setJiraLoadingMsg("Exporting tasks to Jira…");
-                        const res = await fetch("/api/jira/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project_id: projectId }) });
-                        const json = await res.json();
-                        setJiraLoadingMsg(null);
-                        if (json.error) { alert(json.error); } else {
-                          const ok = json.results?.filter((r: {jiraKey?: string}) => r.jiraKey).length ?? 0;
-                          alert(`Export complete. ${ok} task${ok !== 1 ? "s" : ""} sent to Jira.`);
-                        }
+                        setJiraLoadingMsg("Exporting to Jira…");
+                        try {
+                          const { rows, skipped, stalled } = await runJiraBatches<JiraExportResult>(
+                            "/api/jira/export",
+                            { project_id: projectId },
+                            (done, total) => `Exporting to Jira… ${done} of ${total}`,
+                            batch => batch.filter(r => r.created || r.updated || r.unlinked).length,
+                          );
+                          const created  = rows.filter(r => r.created).length;
+                          const updated  = rows.filter(r => r.updated).length;
+                          const status   = rows.filter(r => r.statusPushed).length;
+                          const unlinked = rows.filter(r => r.unlinked).length;
+                          const degraded = rows.filter(r => r.degraded).length;
+                          const failed   = distinctFailures(rows.filter(r => !r.unlinked)).length;
+                          const parts: string[] = [];
+                          if (created)  parts.push(`${created} created`);
+                          if (updated)  parts.push(`${updated} updated`);
+                          if (status)   parts.push(`${status} status change${status !== 1 ? "s" : ""} applied`);
+                          if (skipped)  parts.push(`${skipped} unchanged`);
+                          if (unlinked) parts.push(`${unlinked} no longer in Jira — link removed`);
+                          if (degraded) parts.push(`${degraded} created with title only`);
+                          if (failed)   parts.push(`${failed} failed`);
+                          if (stalled)  parts.push("stopped early — remaining kept failing");
+                          alert(`Export complete. ${parts.length ? parts.join(", ") + "." : "Nothing to send."}${describeJiraFailures(rows.filter(r => !r.unlinked))}`);
+                        } catch (e) {
+                          alert(e instanceof Error ? e.message : "Export failed.");
+                        } finally { setJiraLoadingMsg(null); }
                       }
                     );
                   }}
                   className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left"
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M11.571 11.429L6.857 6.714A6 6 0 0112 2a6 6 0 015.143 9.143L12 16.286l-5.143-4.857z" fill="#2684FF"/><path d="M12.429 12.571l4.714 4.715A6 6 0 0112 22a6 6 0 01-5.143-9.143L12 7.714l5.143 4.857z" fill="#2684FF" opacity=".5"/></svg>
-                  Export project to Jira
-                </button>
-                <button
-                  onClick={() => {
-                    setShowJiraMenu(false);
-                    confirmJiraProject(
-                      "Update Jira issues",
-                      (jiraName, jiraKey) => `This will sync all tasks in "${project?.name}" to Jira project "${jiraName}" (${jiraKey}) — new tasks will be created as Jira issues, and existing linked tasks will be updated with the latest name, status, priority, assignee, due date, and attachments.`,
-                      async () => {
-                        setJiraLoadingMsg("Updating Jira issues…");
-                        const body = JSON.stringify({ project_id: projectId });
-                        const opts = { method: "POST", headers: { "Content-Type": "application/json" }, body };
-                        const [exportRes, pushRes] = await Promise.all([
-                          fetch("/api/jira/export", opts),
-                          fetch("/api/jira/push",   opts),
-                        ]);
-                        const [exportJson, pushJson] = await Promise.all([exportRes.json(), pushRes.json()]);
-                        setJiraLoadingMsg(null);
-                        const created  = exportJson.results?.filter((r: {jiraKey?: string; error?: string}) => r.jiraKey && !r.error).length ?? 0;
-                        const updated  = pushJson.results?.filter((r: {pushed?: boolean}) => r.pushed).length ?? 0;
-                        const skipped  = pushJson.skipped ?? 0;
-                        const parts: string[] = [];
-                        if (created)  parts.push(`${created} new task${created !== 1 ? "s" : ""} created in Jira`);
-                        if (updated)  parts.push(`${updated} updated`);
-                        if (skipped)  parts.push(`${skipped} already up to date — skipped`);
-                        alert(`Done. ${parts.length ? parts.join(", ") + "." : "Nothing to update."}`);
-                      }
-                    );
-                  }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left"
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M11.571 11.429L6.857 6.714A6 6 0 0112 2a6 6 0 015.143 9.143L12 16.286l-5.143-4.857z" fill="#2684FF"/><path d="M12.429 12.571l4.714 4.715A6 6 0 0112 22a6 6 0 01-5.143-9.143L12 7.714l5.143 4.857z" fill="#2684FF" opacity=".5"/></svg>
-                  Update Jira issues
+                  Export to Jira
                 </button>
                 <button
                   onClick={() => {
                     setShowJiraMenu(false);
                     setJiraConfirm({
-                      title: "Sync project from Jira",
-                      body: `This will pull the latest values from Jira and overwrite the matching fields in "${project?.name}" — including status, priority, name, assignee, due date, and attachments. Tasks updated in Jira will be flagged for your review.`,
+                      title: "Sync from Jira",
+                      body: `Changes made in Jira will be pulled into "${project?.name}" — status, priority, title, assignee, due date and attachments.\n\nOnly issues actually changed in Jira are touched. Tasks marked Ready for QA, In Review or Blocked keep that status, since Jira has no equivalent.`,
                       action: async () => {
                         setJiraLoadingMsg("Syncing from Jira…");
-                        const res = await fetch("/api/jira/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project_id: projectId }) });
-                        const json = await res.json();
-                        setJiraLoadingMsg(null);
-                        if (json.error) { alert(json.error); } else {
-                          const ok = json.results?.filter((r: {updated?: boolean}) => r.updated).length ?? 0;
-                          alert(`Sync complete. ${ok} task${ok !== 1 ? "s" : ""} updated from Jira.`);
-                        }
+                        try {
+                          // Sync pages by offset: unchanged tasks are not written, so they never
+                          // drop out of the candidate set the way exported ones do.
+                          const rows: JiraSyncResult[] = [];
+                          let offset: number | null = 0;
+                          while (offset !== null) {
+                            const json = await postJira("/api/jira/sync", { project_id: projectId, offset });
+                            if (json.error) { if (!rows.length) { alert(json.error); return; } break; }
+                            rows.push(...((json.results ?? []) as JiraSyncResult[]));
+                            setJiraLoadingMsg(`Syncing from Jira… ${rows.length} of ${json.total ?? rows.length}`);
+                            offset = json.nextOffset ?? null;
+                          }
+                          const updated  = rows.filter(r => r.updated).length;
+                          const checked  = rows.filter(r => r.checked).length;
+                          const unlinked = rows.filter(r => r.unlinked).length;
+                          const failed   = distinctFailures(rows.filter(r => !r.unlinked)).length;
+                          const parts: string[] = [`${updated} task${updated !== 1 ? "s" : ""} updated from Jira`];
+                          if (checked - updated > 0) parts.push(`${checked - updated} unchanged`);
+                          if (unlinked) parts.push(`${unlinked} no longer in Jira — link removed`);
+                          if (failed)   parts.push(`${failed} failed`);
+                          alert(`Sync complete. ${parts.join(", ")}.${describeJiraFailures(rows.filter(r => !r.unlinked))}`);
+                        } finally { setJiraLoadingMsg(null); }
                       },
                     });
                   }}
                   className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left"
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M11.571 11.429L6.857 6.714A6 6 0 0112 2a6 6 0 015.143 9.143L12 16.286l-5.143-4.857z" fill="#2684FF"/><path d="M12.429 12.571l4.714 4.715A6 6 0 0112 22a6 6 0 01-5.143-9.143L12 7.714l5.143 4.857z" fill="#2684FF" opacity=".5"/></svg>
-                  Sync project from Jira
+                  Sync from Jira
                 </button>
               </div>
             )}
@@ -806,7 +877,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
             className="hidden sm:flex items-center gap-1 px-2 py-1.5 text-xs text-[#9EA3AA] border border-[#E8E8E9] rounded hover:bg-[#F5F5F5]"
             title="Global search"
           >
-            <Search size={11} /> <kbd className="text-[10px]">⌘K</kbd>
+            <Search size={11} /> <kbd className="text-[10px]">âŒ˜K</kbd>
           </button>
         </div>
       </div>
@@ -838,12 +909,23 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                 "Export selected tasks to Jira",
                 (jiraName, jiraKey) => `This will create a new Jira issue for ${ids.length} selected task${ids.length !== 1 ? "s" : ""} in Jira project "${jiraName}" (${jiraKey}). Tasks already linked to Jira will be skipped.`,
                 async () => {
-                  const res = await fetch("/api/jira/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ task_ids: ids }) });
-                  const json = await res.json();
-                  if (json.error) { alert(json.error); return; }
-                  const ok = json.results?.filter((r: {jiraKey?: string}) => r.jiraKey).length ?? 0;
-                  const fail = json.results?.length - ok;
-                  alert(`Exported ${ok} task${ok !== 1 ? "s" : ""} to Jira${fail > 0 ? `. ${fail} failed.` : "."}`);
+                  setJiraLoadingMsg("Exporting selected tasks to Jiraâ€¦");
+                  try {
+                    const { rows, stalled } = await runJiraBatches<JiraExportResult>(
+                      "/api/jira/export",
+                      { task_ids: ids },
+                      (done, total) => `Exporting selected tasks to Jiraâ€¦ ${done} of ${total}`,
+                      batch => batch.filter(r => r.created).length,
+                    );
+                    const created = rows.filter(r => r.created).length;
+                    const failed  = distinctFailures(rows).length;
+                    const parts: string[] = [`${created} new issue${created !== 1 ? "s" : ""} created`];
+                    if (failed)  parts.push(`${failed} failed`);
+                    if (stalled) parts.push("stopped early â€” remaining tasks kept failing");
+                    alert(`Export complete. ${parts.join(", ")}.${describeJiraFailures(rows)}`);
+                  } catch (e) {
+                    alert(e instanceof Error ? e.message : "Export failed.");
+                  } finally { setJiraLoadingMsg(null); }
                 }
               );
             }}
@@ -935,9 +1017,9 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                     <>
                       <span className={`min-w-0 truncate cursor-text flex items-center gap-1 ${task.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`}
                         onClick={e => { if (!task.name) return; e.stopPropagation(); setEditingTaskId(task.id); setEditingTaskName(task.name); }}>
-                        {task.is_milestone && <span className="text-amber-500 text-[10px] flex-shrink-0">◆</span>}
+                        {task.is_milestone && <span className="text-amber-500 text-[10px] flex-shrink-0">â—†</span>}
                         {task.name}
-                        {task.jira_has_updates && <span title="Updated in Jira — open to review" className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0 inline-block" />}
+                        {task.jira_has_updates && <span title="Updated in Jira â€” open to review" className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0 inline-block" />}
                       </span>
                       <span className="sm:hidden text-[10px] text-[#6B6F76] bg-[#F3F4F6] px-1.5 py-0.5 rounded w-fit">{task.status?.replace(/_/g," ")}</span>
                     </>
@@ -997,7 +1079,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                 onMouseLeave={() => { if (openSectionMenu !== section.id) setHoveredSection(null); }}
               >
                 <button onClick={() => toggleCollapse(section.id)} className="mr-1.5 text-[#6B6F76] hover:text-[#151B26] flex-shrink-0 text-[10px] leading-none">
-                  {collapsed ? "▶" : "▼"}
+                  {collapsed ? "â–¶" : "â–¼"}
                 </button>
                 {renamingSection === section.id ? (
                   <input
@@ -1065,7 +1147,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                       >
                         <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3.5h10M5 3.5V2.5a.5.5 0 01.5-.5h3a.5.5 0 01.5.5v1M11.5 3.5l-.8 8a1 1 0 01-1 .9H4.3a1 1 0 01-1-.9l-.8-8" stroke="#E5534B" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                         Delete section
-                        <span className="ml-auto text-[10px] text-[#B0B3B8]">tasks → default</span>
+                        <span className="ml-auto text-[10px] text-[#B0B3B8]">tasks â†’ default</span>
                       </button>
                     </div>
                   )}
@@ -1104,7 +1186,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                       )}
                     </div>
 
-                    {/* Task name column: click text = inline edit, › button = open detail */}
+                    {/* Task name column: click text = inline edit, â€º button = open detail */}
                     <div className="flex-1 text-sm min-w-0 py-1 flex items-center sm:border-r border-[#E8E8E9]">
                       <div
                         className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-0.5 cursor-pointer pr-1"
@@ -1129,10 +1211,10 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                               onClick={e => { if (!task.name) return; e.stopPropagation(); setEditingTaskId(task.id); setEditingTaskName(task.name); }}
                             >
                               {task.name}
-                              {task.jira_has_updates && <span title="Updated in Jira — open to review" className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0 inline-block" />}
+                              {task.jira_has_updates && <span title="Updated in Jira â€” open to review" className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0 inline-block" />}
                             </span>
                             {(task.BT_attachments?.length ?? 0) > 0 && (
-                              <span className="text-xs text-[#6B6F76] shrink-0" onClick={e => e.stopPropagation()}>📎 {task.BT_attachments!.length}</span>
+                              <span className="text-xs text-[#6B6F76] shrink-0" onClick={e => e.stopPropagation()}>ðŸ“Ž {task.BT_attachments!.length}</span>
                             )}
                             <span className="sm:hidden text-[10px] text-[#6B6F76] bg-[#F3F4F6] px-1.5 py-0.5 rounded w-fit">{task.status?.replace(/_/g," ")}</span>
                           </>

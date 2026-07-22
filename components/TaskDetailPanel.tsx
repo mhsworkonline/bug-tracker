@@ -382,15 +382,30 @@ export default function TaskDetailPanel({
     setJiraExportConfirm({ key: resolved.key, name: resolved.name });
   };
 
+  // Creates the issue if this task has none, otherwise updates it — same single action as
+  // the project-level "Export to Jira".
   const exportToJira = async () => {
     setJiraExportConfirm(null); setJiraExporting(true); setJiraResult(null);
     const res = await fetch("/api/jira/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ task_ids: [task.id] }) });
     const json = await res.json();
     const result = json.results?.[0];
-    if (result?.jiraKey) {
-      setJiraResult({ key: result.jiraKey, url: result.jiraUrl });
-      updateTask(task.id, { jira_issue_key: result.jiraKey } as Parameters<typeof updateTask>[1]);
-    } else alert(result?.error ?? json.error ?? "Export failed.");
+    if (result?.error && !result?.jiraKey) {
+      alert(result.error);
+    } else if (result?.jiraKey) {
+      if (result.unlinked) {
+        alert(result.error);
+        updateTask(task.id, { jira_issue_key: null } as Parameters<typeof updateTask>[1]);
+        setJiraResult(null);
+      } else {
+        setJiraResult({ key: result.jiraKey, url: result.jiraUrl });
+        updateTask(task.id, { jira_issue_key: result.jiraKey } as Parameters<typeof updateTask>[1]);
+        if (result.updated) alert(`${result.jiraKey} updated in Jira.`);
+      }
+    } else if (json.error) {
+      alert(json.error);
+    } else {
+      alert("Already up to date in Jira.");
+    }
     setJiraExporting(false);
   };
 
@@ -399,18 +414,10 @@ export default function TaskDetailPanel({
     const res = await fetch("/api/jira/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ task_ids: [task.id] }) });
     const json = await res.json();
     const result = json.results?.[0];
-    if (result?.error) alert(`Sync failed: ${result.error}`);
-    else alert(`Synced from Jira (${result?.jiraKey}). Refresh to see latest values.`);
-    setJiraExporting(false);
-  };
-
-  const pushToJira = async () => {
-    setShowMenu(false); setJiraExporting(true);
-    const res = await fetch("/api/jira/push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ task_ids: [task.id] }) });
-    const json = await res.json();
-    const result = json.results?.[0];
-    if (result?.error) alert(`Push failed: ${result.error}`);
-    else alert(`Pushed to Jira (${result?.jiraKey}) successfully.`);
+    if (json.error)         alert(json.error);
+    else if (result?.error) alert(result.error);
+    else if (result?.updated) alert(`Updated from Jira (${result.jiraKey}). Reopen the task to see the new values.`);
+    else alert(`${result?.jiraKey ?? "This task"} is already up to date.`);
     setJiraExporting(false);
   };
 
@@ -553,9 +560,9 @@ export default function TaskDetailPanel({
                   </button>
                   {task.jira_issue_key ? (
                     <>
-                      <button onClick={pushToJira} disabled={jiraExporting} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left disabled:opacity-50">
+                      <button onClick={askExportToJira} disabled={jiraExporting} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left disabled:opacity-50">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="flex-shrink-0"><path d="M11.571 11.429L6.857 6.714A6 6 0 0112 2a6 6 0 015.143 9.143L12 16.286l-5.143-4.857z" fill="#2684FF"/><path d="M12.429 12.571l4.714 4.715A6 6 0 0112 22a6 6 0 01-5.143-9.143L12 7.714l5.143 4.857z" fill="#2684FF" opacity=".5"/></svg>
-                        {jiraExporting ? "Updating…" : `Update Jira (${task.jira_issue_key})`}
+                        {jiraExporting ? "Exporting…" : `Export to Jira (${task.jira_issue_key})`}
                       </button>
                       <button onClick={syncFromJira} disabled={jiraExporting} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left disabled:opacity-50">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="flex-shrink-0"><path d="M11.571 11.429L6.857 6.714A6 6 0 0112 2a6 6 0 015.143 9.143L12 16.286l-5.143-4.857z" fill="#2684FF"/><path d="M12.429 12.571l4.714 4.715A6 6 0 0112 22a6 6 0 01-5.143-9.143L12 7.714l5.143 4.857z" fill="#2684FF" opacity=".5"/></svg>
@@ -603,8 +610,10 @@ export default function TaskDetailPanel({
             <div className="bg-white rounded-xl shadow-xl p-6 w-96" onClick={e => e.stopPropagation()}>
               <h3 className="text-base font-semibold text-[#151B26] mb-2">Export to Jira?</h3>
               <p className="text-sm text-[#6B6F76] mb-5">
-                This task will be created as a new issue in Jira project{" "}
-                <span className="font-medium text-[#151B26]">"{jiraExportConfirm.name}"</span> ({jiraExportConfirm.key}).
+                {task.jira_issue_key
+                  ? <>Jira issue <span className="font-medium text-[#151B26]">{task.jira_issue_key}</span> will be updated in </>
+                  : <>This task will be created as a new issue in </>}
+                Jira project <span className="font-medium text-[#151B26]">&quot;{jiraExportConfirm.name}&quot;</span> ({jiraExportConfirm.key}).
               </p>
               <div className="flex gap-2 justify-end">
                 <button onClick={() => setJiraExportConfirm(null)} className="px-4 py-1.5 border border-[#E8E8E9] text-sm text-[#151B26] rounded-md hover:bg-[#FAFBFC]">Cancel</button>

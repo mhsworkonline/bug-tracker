@@ -15,23 +15,30 @@ export async function GET(req: NextRequest) {
   const { data: setting } = await client.from("BT_settings").select("value").eq("key", "jira_config").single();
   if (!setting?.value) return NextResponse.json({ error: "Jira not configured. Go to Admin → Settings → Jira Integration." }, { status: 400 });
 
-  const { domain, email, api_token, project_key: globalKey } = setting.value as Record<string, string>;
+  const { domain, email, api_token } = setting.value as Record<string, string>;
   const base = domain.replace(/\/$/, "");
   const auth = Buffer.from(`${email}:${api_token}`).toString("base64");
   const headers = { Authorization: `Basic ${auth}`, Accept: "application/json" };
 
+  // The project must have its OWN key. There is deliberately no fallback to the global
+  // default — that silently sent tasks into whichever project the default pointed at.
   const { data: proj } = await client.from("BT_projects").select("jira_project_key").eq("id", project_id).single();
-  const key = (proj?.jira_project_key as string | null) || globalKey;
-  if (!key) return NextResponse.json({ error: "No Jira project key configured." }, { status: 400 });
+  const key = (proj?.jira_project_key as string | null) || null;
+  if (!key) {
+    return NextResponse.json(
+      { error: "This project has no Jira project key set. Set the key before exporting.", needsKey: true },
+      { status: 400 },
+    );
+  }
 
   try {
     const res = await fetch(`${base}/rest/api/3/project/${encodeURIComponent(key)}`, { headers });
     if (!res.ok) {
-      if (res.status === 404) return NextResponse.json({ error: `Jira project "${key}" not found.` }, { status: 404 });
+      if (res.status === 404) return NextResponse.json({ error: `Jira project "${key}" not found.`, needsKey: true }, { status: 404 });
       return NextResponse.json({ error: `Jira error ${res.status}` }, { status: res.status });
     }
     const json = await res.json();
-    return NextResponse.json({ key, name: json.name as string, isDefault: !proj?.jira_project_key });
+    return NextResponse.json({ key, name: json.name as string });
   } catch {
     return NextResponse.json({ error: "Could not reach Jira." }, { status: 502 });
   }
