@@ -42,11 +42,8 @@ export default function ShowHideColumns({ configs, onToggle, onClose }: Props) {
         </div>
 
         {/* Subheader */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-[#E8E8E9] flex-shrink-0">
+        <div className="px-5 py-3 border-b border-[#E8E8E9] flex-shrink-0">
           <p className="text-xs text-[#6B6F76]">Show, hide, and reorder columns in this view</p>
-          <button className="flex items-center gap-1 px-2.5 py-1 border border-[#E8E8E9] text-xs text-[#151B26] rounded hover:bg-[#FAFBFC]">
-            + Add
-          </button>
         </div>
 
         {/* Column list */}

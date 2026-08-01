@@ -292,7 +292,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     let r = [...tasks];
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      r = r.filter(t => t.name.toLowerCase().includes(q));
+      r = r.filter(t => t.name.toLowerCase().includes(q) || (t.BT_attachments ?? []).some(a => a.name.toLowerCase().includes(q)));
     }
     if (activeFilters.incomplete && !activeFilters.completed)  r = r.filter(t => !t.completed);
     if (activeFilters.completed  && !activeFilters.incomplete) r = r.filter(t =>  t.completed);
