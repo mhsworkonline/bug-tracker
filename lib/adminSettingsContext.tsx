@@ -14,6 +14,9 @@ interface AdminSettings {
   storageConfig: StorageConfig;
   lockPriorities: boolean;
   requireAssigneeApproval: boolean;
+  membersCanManageMembers: boolean;
+  membersCanExportJira: boolean;
+  membersCanExportExcel: boolean;
   statusByKey: (key: string) => StatusOption;
   priorityByKey: (key: string) => PriorityOption | null;
   taskTypeByKey: (key: string) => TaskTypeOption | null;
@@ -23,6 +26,9 @@ interface AdminSettings {
   saveStorageConfig: (v: StorageConfig) => Promise<void>;
   saveLockPriorities: (v: boolean) => Promise<void>;
   saveRequireAssigneeApproval: (v: boolean) => Promise<void>;
+  saveMembersCanManageMembers: (v: boolean) => Promise<void>;
+  saveMembersCanExportJira: (v: boolean) => Promise<void>;
+  saveMembersCanExportExcel: (v: boolean) => Promise<void>;
 }
 
 const FALLBACK_STATUS: StatusOption = { key: "", label: "Unknown", bg: "#F3F4F6", text: "#6B6F76", order: 99 };
@@ -31,9 +37,11 @@ const Ctx = createContext<AdminSettings>({
   statuses: DEFAULT_STATUSES, priorities: DEFAULT_PRIORITIES,
   taskTypes: DEFAULT_TASK_TYPES, storageConfig: DEFAULT_STORAGE,
   lockPriorities: false, requireAssigneeApproval: false,
+  membersCanManageMembers: true, membersCanExportJira: true, membersCanExportExcel: true,
   statusByKey: () => FALLBACK_STATUS, priorityByKey: () => null, taskTypeByKey: () => null,
   saveStatuses: async () => {}, savePriorities: async () => {}, saveTaskTypes: async () => {},
   saveStorageConfig: async () => {}, saveLockPriorities: async () => {}, saveRequireAssigneeApproval: async () => {},
+  saveMembersCanManageMembers: async () => {}, saveMembersCanExportJira: async () => {}, saveMembersCanExportExcel: async () => {},
 });
 
 export function AdminSettingsProvider({ children }: { children: React.ReactNode }) {
@@ -43,6 +51,9 @@ export function AdminSettingsProvider({ children }: { children: React.ReactNode 
   const [storageConfig, setStorageConfig] = useState<StorageConfig>(DEFAULT_STORAGE);
   const [lockPriorities, setLockPriorities]                 = useState(false);
   const [requireAssigneeApproval, setRequireAssigneeApproval] = useState(false);
+  const [membersCanManageMembers, setMembersCanManageMembers] = useState(true);
+  const [membersCanExportJira, setMembersCanExportJira]       = useState(true);
+  const [membersCanExportExcel, setMembersCanExportExcel]     = useState(true);
 
   useEffect(() => {
     supabase.from("BT_settings").select("*").then(({ data }) => {
@@ -54,6 +65,9 @@ export function AdminSettingsProvider({ children }: { children: React.ReactNode 
         if (row.key === "storage_config")            setStorageConfig(row.value);
         if (row.key === "lock_priorities")           setLockPriorities(row.value === true || row.value?.enabled === true);
         if (row.key === "require_assignee_approval") setRequireAssigneeApproval(row.value === true || row.value?.enabled === true);
+        if (row.key === "members_manage_members")    setMembersCanManageMembers(!(row.value === false || row.value?.enabled === false));
+        if (row.key === "members_jira_export")       setMembersCanExportJira(!(row.value === false || row.value?.enabled === false));
+        if (row.key === "members_excel_export")      setMembersCanExportExcel(!(row.value === false || row.value?.enabled === false));
       }
     });
   }, []);
@@ -74,14 +88,19 @@ export function AdminSettingsProvider({ children }: { children: React.ReactNode 
   const saveStorageConfig = useCallback(async (v: StorageConfig)   => { setStorageConfig(v); await upsert("storage_config", v); }, []);
   const saveLockPriorities = useCallback(async (v: boolean) => { setLockPriorities(v); await upsert("lock_priorities", v); }, []);
   const saveRequireAssigneeApproval = useCallback(async (v: boolean) => { setRequireAssigneeApproval(v); await upsert("require_assignee_approval", v); }, []);
+  const saveMembersCanManageMembers = useCallback(async (v: boolean) => { setMembersCanManageMembers(v); await upsert("members_manage_members", v); }, []);
+  const saveMembersCanExportJira    = useCallback(async (v: boolean) => { setMembersCanExportJira(v);    await upsert("members_jira_export", v); }, []);
+  const saveMembersCanExportExcel   = useCallback(async (v: boolean) => { setMembersCanExportExcel(v);   await upsert("members_excel_export", v); }, []);
 
   return (
     <Ctx.Provider value={{
       statuses, priorities, taskTypes, storageConfig,
       lockPriorities, requireAssigneeApproval,
+      membersCanManageMembers, membersCanExportJira, membersCanExportExcel,
       statusByKey, priorityByKey, taskTypeByKey,
       saveStatuses, savePriorities, saveTaskTypes, saveStorageConfig,
       saveLockPriorities, saveRequireAssigneeApproval,
+      saveMembersCanManageMembers, saveMembersCanExportJira, saveMembersCanExportExcel,
     }}>
       {children}
     </Ctx.Provider>

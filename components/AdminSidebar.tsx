@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   LayoutDashboard, Users, Activity, Settings, ChevronDown,
-  Tag, HardDrive, Puzzle, ShieldCheck, FolderOpen,
+  Tag, HardDrive, Puzzle, ShieldCheck, FolderOpen, Lock,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -74,6 +74,7 @@ export default function AdminSidebar({ open, onClose }: Props) {
 
         {navItem("/admin", <LayoutDashboard size={15} />, "Overview", true)}
         {navItem("/admin/users", <Users size={15} />, "Members")}
+        {navItem("/admin/permissions", <Lock size={15} />, "Permissions")}
         {navItem("/admin/activity", <Activity size={15} />, "Activity Log")}
 
         <div className="my-1 border-t border-[#F0F1F3]" />

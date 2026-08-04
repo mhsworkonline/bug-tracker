@@ -2,7 +2,6 @@
 
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import PermissionsSection from "../PermissionsSection";
 import AssignmentRequestsSection from "../AssignmentRequestsSection";
 import StatusSection from "../StatusSection";
 import PrioritySection from "../PrioritySection";
@@ -29,10 +28,7 @@ function SettingsContent() {
       </div>
       <div className="px-4 sm:px-8 pb-8 flex flex-col gap-6 max-w-3xl">
         {tab === "general" && (
-          <>
-            <PermissionsSection />
-            <AssignmentRequestsSection />
-          </>
+          <AssignmentRequestsSection />
         )}
         {tab === "labels" && (
           <>

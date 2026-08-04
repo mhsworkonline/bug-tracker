@@ -12,6 +12,7 @@ interface Props {
   sections: Section[];
   tasks: Task[];
   canManage: boolean;
+  canExport: boolean;
   position: { top: number; left: number };
   onExport: (type: "csv" | "excel" | "excel-delta" | "pdf" | "json") => void;
   onEditSettings: () => void;
@@ -25,7 +26,7 @@ interface Props {
 }
 
 export default function ProjectDropdownMenu({
-  project, canManage, position,
+  project, canManage, canExport, position,
   onExport, onEditSettings, onManageMembers, onCopyLink, onDuplicate, onSaveTemplate, onImport, onToggleActive, onClose,
 }: Props) {
   const [showExport, setShowExport] = useState(false);
@@ -85,6 +86,7 @@ export default function ProjectDropdownMenu({
         className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left">
         <Upload size={14} className="text-[#6B6F76]" /> Import
       </button>
+      {canExport && (
       <div className="relative"
         onMouseEnter={() => setShowExport(true)}
         onMouseLeave={() => setShowExport(false)}
@@ -128,6 +130,7 @@ export default function ProjectDropdownMenu({
           </div>
         )}
       </div>
+      )}
 
       <div className="my-1 border-t border-[#E8E8E9]" />
 

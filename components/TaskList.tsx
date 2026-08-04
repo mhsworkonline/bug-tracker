@@ -155,11 +155,12 @@ export default function TaskList({ projectId, userEmail }: { projectId: string; 
     return () => { document.title = "Bug Tracker"; };
   }, [project?.name]);
 
-  const { lockPriorities, taskTypes } = useAdminSettings();
+  const { lockPriorities, taskTypes, membersCanManageMembers, membersCanExportJira, membersCanExportExcel } = useAdminSettings();
   const { updateProject } = useStore();
 
   const [userRole, setUserRole]               = useState<"lead" | "member">("member");
-  const canManage = isAdmin || userRole === "lead";
+  const canManage = isAdmin || (membersCanManageMembers && userRole === "lead");
+  const canExport = isAdmin || membersCanExportExcel;
 
   const [showAddTaskMenu, setShowAddTaskMenu] = useState(false);
   const [openSectionMenu, setOpenSectionMenu] = useState<string | null>(null);
@@ -321,6 +322,10 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     else r = [...r].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
     return r;
   }, [tasks, activeFilters, sortKey, sortDir, searchQuery]);
+
+  const sortedSections = useMemo(() =>
+    [...sections].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })),
+    [sections]);
 
   const lastClickedRef = useRef<string | null>(null);
 
@@ -728,6 +733,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
             <Settings2 size={14} /> Options
           </button>
           {/* Project-level Jira */}
+          {(isAdmin || membersCanExportJira) && (
           <div className="relative hidden sm:block">
             <button
               onClick={() => setShowJiraMenu(v => !v)}
@@ -865,6 +871,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
               </div>
             )}
           </div>
+          )}
           <button
             onClick={() => { setShowSearch(v => !v); if (showSearch) setSearchQuery(""); }}
             className={`p-2 rounded transition-colors ${showSearch ? "text-[#4573D9] bg-[#EEF2FB]" : "text-[#6B6F76] hover:bg-[#F5F5F5]"}`}
@@ -902,6 +909,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
               onChange={e => { if (e.target.value) updateSelectedTasks({ due_date: e.target.value }); }}
             />
           </label>
+          {(isAdmin || membersCanExportJira) && (
           <button
             onClick={() => {
               const ids = [...selectedIds];
@@ -934,6 +942,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M11.571 11.429L6.857 6.714A6 6 0 0112 2a6 6 0 015.143 9.143L12 16.286l-5.143-4.857z" fill="currentColor"/><path d="M12.429 12.571l4.714 4.715A6 6 0 0112 22a6 6 0 01-5.143-9.143L12 7.714l5.143 4.857z" fill="currentColor" opacity=".5"/></svg>
             Export to Jira
           </button>
+          )}
           <button onClick={() => setSelectedIds(new Set())} className="ml-auto flex items-center gap-1 text-white/60 hover:text-white" title="Deselect all (Esc)">
             <X size={14} /> Deselect all
           </button>
@@ -1065,7 +1074,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
         })}
 
         {/* Sections + tasks */}
-        {sections.map(section => {
+        {sortedSections.map(section => {
           const sectionTasks = filteredTasks.filter(t => t.section_id === section.id);
           const isSearchActive = searchQuery.trim() !== "" || filteredTasks.length !== tasks.length;
           const collapsed = isSearchActive ? false : collapsedSections.has(section.id);
@@ -1484,6 +1493,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
           sections={sections}
           tasks={tasks}
           canManage={canManage}
+          canExport={canExport}
           position={projectMenuPos}
           onExport={handleExport}
           onEditSettings={() => setShowEditProject(true)}
