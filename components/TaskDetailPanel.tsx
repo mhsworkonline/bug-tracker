@@ -719,7 +719,7 @@ export default function TaskDetailPanel({
                 className="text-sm text-[#151B26] border border-[#E8E8E9] rounded px-2 py-1.5 outline-none hover:border-[#4573D9] focus:border-[#4573D9] bg-white w-full sm:w-auto"
               >
                 <option value="">— No section</option>
-                {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                {[...sections].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 <option value="__new__">+ Add new section</option>
               </select>
             )}
@@ -744,7 +744,7 @@ export default function TaskDetailPanel({
                     className="text-sm text-[#151B26] border border-[#E8E8E9] rounded px-2 py-1.5 outline-none hover:border-[#4573D9] focus:border-[#4573D9] bg-white w-full sm:w-auto"
                   >
                     <option value="">— No section</option>
-                    {moveSections.filter(s => s.project_id === moveProjectId).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    {moveSections.filter(s => s.project_id === moveProjectId).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                 )}
                 {moveProjectId && !moveConfirm && (
