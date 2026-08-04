@@ -1466,7 +1466,9 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
           projectId={projectId}
           projectName={project.name}
           ownerEmail={userEmail}
+          canManage={canManage}
           onClose={() => setShowShare(false)}
+          onManageMembers={() => { setShowShare(false); setShowMembers(true); }}
         />
       )}
       {showColumns && (

@@ -11,17 +11,27 @@ interface Share {
   notify_new_tasks: boolean;
 }
 
+interface TeamMember {
+  id: string;
+  email: string;
+  name?: string | null;
+  role: "lead" | "member";
+}
+
 interface Props {
   projectId: string;
   projectName: string;
   ownerEmail?: string;
+  canManage?: boolean;
   onClose: () => void;
+  onManageMembers?: () => void;
 }
 
 const ROLES = ["editor", "viewer"] as const;
 
-export default function ShareProjectModal({ projectId, projectName, ownerEmail, onClose }: Props) {
+export default function ShareProjectModal({ projectId, projectName, ownerEmail, canManage, onClose, onManageMembers }: Props) {
   const [shares, setShares]       = useState<Share[]>([]);
+  const [members, setMembers]     = useState<TeamMember[]>([]);
   const [invite, setInvite]       = useState("");
   const [role, setRole]           = useState<"editor" | "viewer">("editor");
   const [notifyNew, setNotifyNew] = useState(false);
@@ -34,6 +44,8 @@ export default function ShareProjectModal({ projectId, projectName, ownerEmail, 
   useEffect(() => {
     supabase.from("BT_project_shares").select("*").eq("project_id", projectId)
       .then(({ data }) => setShares((data as Share[]) ?? []));
+    fetch(`/api/projects/${projectId}/members`).then(r => r.json())
+      .then(d => setMembers(d.members ?? []));
   }, [projectId]);
 
   useEffect(() => {
@@ -131,6 +143,9 @@ export default function ShareProjectModal({ projectId, projectName, ownerEmail, 
           <div>
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm font-semibold text-[#151B26]">Who has access</p>
+              {canManage && onManageMembers && (
+                <button onClick={onManageMembers} className="text-xs text-[#4573D9] hover:underline">Manage roles</button>
+              )}
             </div>
             <div className="flex flex-col gap-2">
               {/* Owner */}
@@ -146,7 +161,22 @@ export default function ShareProjectModal({ projectId, projectName, ownerEmail, 
                   <span className="text-sm text-[#6B6F76] flex items-center gap-1">Project admin <ChevronDown size={12} /></span>
                 </div>
               )}
-              {/* Shared members */}
+              {/* Team members (added via Members) */}
+              {members.map(m => (
+                <div key={m.id} className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-[#14A454] flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
+                    {(m.name || m.email).slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-[#151B26] truncate">{m.name || m.email}</div>
+                    {m.name && <div className="text-xs text-[#9EA3AA] truncate">{m.email}</div>}
+                  </div>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-[#F5F5F5] text-[#6B6F76] flex-shrink-0">
+                    {m.role === "lead" ? "Project Lead" : "Member"}
+                  </span>
+                </div>
+              ))}
+              {/* Invited by email */}
               {shares.map(s => (
                 <div key={s.id} className="flex items-center gap-3 group">
                   <div className="w-8 h-8 rounded-full bg-[#4573D9] flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
@@ -158,7 +188,7 @@ export default function ShareProjectModal({ projectId, projectName, ownerEmail, 
                   <RoleDropdown role={s.role} onChange={r => updateRole(s.id, r)} onRemove={() => removeShare(s.id)} />
                 </div>
               ))}
-              {shares.length === 0 && !ownerEmail && (
+              {shares.length === 0 && members.length === 0 && !ownerEmail && (
                 <p className="text-xs text-[#9EA3AA]">Only you have access.</p>
               )}
             </div>
