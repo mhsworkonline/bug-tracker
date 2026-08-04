@@ -1,17 +1,23 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
-import { Trash2, Key, Plus, Loader2, Users, Pencil } from "lucide-react";
+import { Trash2, Key, Plus, Loader2, Users, Search, X, ChevronDown } from "lucide-react";
 
 interface User    { id: string; email?: string; name?: string; created_at: string; }
 interface Project { id: string; name: string; }
-interface Member  { id: string; project_id: string; user_id: string; }
+interface Member  { id: string; project_id: string; user_id: string; role: "lead" | "member"; }
+
+const ROLES: { value: "member" | "lead"; label: string }[] = [
+  { value: "member", label: "Member" },
+  { value: "lead",   label: "Project Lead" },
+];
 
 export default function UsersPage() {
   const [users, setUsers]       = useState<User[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [members, setMembers]   = useState<Member[]>([]);
   const [loading, setLoading]   = useState(true);
+  const [query, setQuery]       = useState("");
 
   // Create user form
   const [name, setName]         = useState("");
@@ -20,20 +26,8 @@ export default function UsersPage() {
   const [creating, setCreating] = useState(false);
   const [createErr, setCreateErr] = useState("");
 
-  // Password change
-  const [pwUserId, setPwUserId] = useState<string | null>(null);
-  const [newPw, setNewPw]       = useState("");
-  const [saving, setSaving]     = useState(false);
-
-  // Name edit
-  const [nameUserId, setNameUserId] = useState<string | null>(null);
-  const [editName, setEditName]     = useState("");
-  const [savingName, setSavingName] = useState(false);
-
-  // Project assignment
-  const [selProject, setSelProject] = useState("");
-  const [selUser, setSelUser]       = useState("");
-  const [adding, setAdding]         = useState(false);
+  // Edit member modal
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const loadUsers = useCallback(async () => {
     const r = await fetch("/api/admin/users");
@@ -50,9 +44,12 @@ export default function UsersPage() {
   useEffect(() => {
     Promise.all([
       loadUsers(),
-      supabase.from("BT_projects").select("id,name").order("created_at").then(({ data }) => setProjects(data ?? [])),
       loadMembers(),
-    ]).then(() => setLoading(false));
+      supabase.from("BT_projects").select("id,name").order("created_at"),
+    ]).then(([, , projectsRes]) => {
+      setProjects(projectsRes.data ?? []);
+      setLoading(false);
+    });
   }, [loadUsers, loadMembers]);
 
   const createUser = async () => {
@@ -70,43 +67,25 @@ export default function UsersPage() {
   };
 
   const deleteUser = async (id: string) => {
-    if (!confirm("Delete this user?")) return;
+    if (!confirm("Delete this member? This removes their account and all project memberships.")) return;
     await fetch(`/api/admin/users/${id}`, { method: "DELETE" });
     setUsers(u => u.filter(x => x.id !== id));
     setMembers(m => m.filter(x => x.user_id !== id));
+    setEditingId(null);
   };
 
-  const changePassword = async () => {
-    if (!pwUserId || !newPw) return;
-    setSaving(true);
-    await fetch(`/api/admin/users/${pwUserId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: newPw }) });
-    setSaving(false); setPwUserId(null); setNewPw("");
-  };
+  const filteredUsers = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return users;
+    return users.filter(u => (u.name ?? "").toLowerCase().includes(q) || (u.email ?? "").toLowerCase().includes(q));
+  }, [users, query]);
 
-  const saveName = async () => {
-    if (!nameUserId) return;
-    setSavingName(true);
-    await fetch(`/api/admin/users/${nameUserId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: editName }) });
-    setSavingName(false); setNameUserId(null);
-    await loadUsers();
-  };
+  const projectsOf = (userId: string) =>
+    members.filter(m => m.user_id === userId)
+      .map(m => ({ member: m, project: projects.find(p => p.id === m.project_id) }))
+      .filter((x): x is { member: Member; project: Project } => !!x.project);
 
-  const addMember = async () => {
-    if (!selProject || !selUser) return;
-    setAdding(true);
-    await fetch("/api/admin/members", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project_id: selProject, user_id: selUser }) });
-    setAdding(false);
-    await loadMembers();
-  };
-
-  const removeMember = async (projectId: string, userId: string) => {
-    await fetch("/api/admin/members", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project_id: projectId, user_id: userId }) });
-    setMembers(m => m.filter(x => !(x.project_id === projectId && x.user_id === userId)));
-  };
-
-  const emailOf = (uid: string) => users.find(u => u.id === uid)?.email ?? uid.slice(0, 8);
-  const nameOf  = (uid: string) => users.find(u => u.id === uid)?.name;
-  const projectName = (pid: string) => projects.find(p => p.id === pid)?.name ?? pid.slice(0, 8);
+  const editingUser = users.find(u => u.id === editingId) ?? null;
 
   return (
     <div>
@@ -118,108 +97,230 @@ export default function UsersPage() {
       {loading ? (
         <div className="flex items-center justify-center py-20 gap-2 text-[#6B6F76] text-sm"><Loader2 size={16} className="animate-spin" /> Loading…</div>
       ) : (
-        <div className="max-w-4xl mx-auto px-4 sm:px-8 py-6 sm:py-8 flex flex-col gap-6">
+        <div className="max-w-3xl mx-auto px-4 sm:px-8 py-6 sm:py-8 flex flex-col gap-6">
 
           {/* Create user */}
           <section className="bg-white rounded-xl border border-[#E8E8E9] p-4 sm:p-6">
-            <h2 className="text-base font-semibold text-[#151B26] mb-4">Create User</h2>
+            <h2 className="text-base font-semibold text-[#151B26] mb-4">Add a new member</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
               <input value={name} onChange={e => setName(e.target.value)} placeholder="Full name" className="border border-[#E8E8E9] rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#4573D9]" />
               <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" type="email" className="border border-[#E8E8E9] rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#4573D9]" />
               <input value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" type="password" className="border border-[#E8E8E9] rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#4573D9]" />
               <button onClick={createUser} disabled={!name || !email || !password || creating} className="px-3 py-1.5 bg-[#4573D9] text-white text-sm rounded-lg hover:bg-[#3F65C4] disabled:opacity-50 flex items-center justify-center gap-1">
-                {creating ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Create user
+                {creating ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Create member
               </button>
             </div>
             {createErr && <p className="text-sm text-red-500">{createErr}</p>}
+            <p className="text-xs text-[#9EA3AA] mt-2">You can assign them to projects after creating the account — click their name below.</p>
           </section>
 
-          {/* Users list */}
+          {/* Members list */}
           <section className="bg-white rounded-xl border border-[#E8E8E9] p-4 sm:p-6">
-            <h2 className="text-base font-semibold text-[#151B26] mb-4">Users ({users.length})</h2>
+            <div className="flex items-center justify-between mb-4 gap-3">
+              <h2 className="text-base font-semibold text-[#151B26]">All members ({users.length})</h2>
+            </div>
+            <div className="relative mb-4">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#B0B3B8]" />
+              <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search by name or email…"
+                className="w-full border border-[#E8E8E9] rounded-lg pl-9 pr-3 py-1.5 text-sm outline-none focus:border-[#4573D9]" />
+            </div>
+            {filteredUsers.length === 0 && <p className="text-sm text-[#B0B3B8] text-center py-4">No members found.</p>}
             <div className="flex flex-col divide-y divide-[#F5F5F5]">
-              {users.map(u => (
-                <div key={u.id} className="flex items-center justify-between py-2.5">
-                  <div>
-                    {u.name && <p className="text-sm font-medium text-[#151B26]">{u.name}</p>}
-                    <p className="text-sm text-[#6B6F76]">{u.email}</p>
-                  </div>
-                  <div className="flex gap-1">
-                    <button onClick={() => { setNameUserId(u.id); setEditName(u.name ?? ""); }} className="p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded" title="Edit name"><Pencil size={13} /></button>
-                    <button onClick={() => { setPwUserId(u.id); setNewPw(""); }} className="p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded" title="Change password"><Key size={13} /></button>
-                    <button onClick={() => deleteUser(u.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded" title="Delete"><Trash2 size={13} /></button>
+              {filteredUsers.map(u => {
+                const projs = projectsOf(u.id);
+                const initials = (u.name || u.email || "??").slice(0, 2).toUpperCase();
+                return (
+                  <button key={u.id} onClick={() => setEditingId(u.id)}
+                    className="flex items-center gap-3 py-2.5 text-left hover:bg-[#FAFBFC] -mx-2 px-2 rounded-md transition-colors">
+                    <div className="w-8 h-8 rounded-full bg-[#4573D9] flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
+                      {initials}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      {u.name && <p className="text-sm font-medium text-[#151B26] truncate">{u.name}</p>}
+                      <p className="text-sm text-[#6B6F76] truncate">{u.email}</p>
+                    </div>
+                    <div className="hidden sm:flex flex-wrap gap-1 justify-end max-w-[45%]">
+                      {projs.length === 0
+                        ? <span className="text-xs text-[#B0B3B8]">No projects</span>
+                        : projs.slice(0, 3).map(({ member, project }) => (
+                            <span key={member.id} className="text-xs px-2 py-0.5 rounded-full bg-[#F5F5F5] text-[#6B6F76] truncate max-w-[120px]">{project.name}</span>
+                          ))
+                      }
+                      {projs.length > 3 && <span className="text-xs px-2 py-0.5 rounded-full bg-[#F5F5F5] text-[#6B6F76]">+{projs.length - 3}</span>}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {/* Edit member modal — single place to edit everything about a member */}
+      {editingUser && (
+        <EditMemberModal
+          user={editingUser}
+          projects={projects}
+          memberships={projectsOf(editingUser.id)}
+          onClose={() => setEditingId(null)}
+          onUserUpdated={loadUsers}
+          onMembersChanged={loadMembers}
+          onDelete={() => deleteUser(editingUser.id)}
+        />
+      )}
+    </div>
+  );
+}
+
+function EditMemberModal({
+  user, projects, memberships, onClose, onUserUpdated, onMembersChanged, onDelete,
+}: {
+  user: User;
+  projects: Project[];
+  memberships: { member: Member; project: Project }[];
+  onClose: () => void;
+  onUserUpdated: () => Promise<void>;
+  onMembersChanged: () => Promise<void>;
+  onDelete: () => void;
+}) {
+  const [editName, setEditName]   = useState(user.name ?? "");
+  const [editEmail, setEditEmail] = useState(user.email ?? "");
+  const [newPw, setNewPw]         = useState("");
+  const [saving, setSaving]       = useState(false);
+  const [saveErr, setSaveErr]     = useState("");
+  const [saved, setSaved]         = useState(false);
+
+  const [addProjectId, setAddProjectId] = useState("");
+  const [addRole, setAddRole]           = useState<"member" | "lead">("member");
+  const [adding, setAdding]             = useState(false);
+
+  const assignedIds = new Set(memberships.map(m => m.project.id));
+  const availableProjects = projects.filter(p => !assignedIds.has(p.id));
+
+  const saveProfile = async () => {
+    setSaving(true); setSaveErr(""); setSaved(false);
+    const body: Record<string, string> = { name: editName, email: editEmail };
+    if (newPw) body.password = newPw;
+    const r = await fetch(`/api/admin/users/${user.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    setSaving(false);
+    if (d.error) { setSaveErr(d.error); return; }
+    setNewPw("");
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+    await onUserUpdated();
+  };
+
+  const addMembership = async () => {
+    if (!addProjectId) return;
+    setAdding(true);
+    await fetch("/api/admin/members", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project_id: addProjectId, user_id: user.id, role: addRole }),
+    });
+    setAdding(false); setAddProjectId(""); setAddRole("member");
+    await onMembersChanged();
+  };
+
+  const changeRole = async (projectId: string, role: "member" | "lead") => {
+    await fetch("/api/admin/members", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project_id: projectId, user_id: user.id, role }),
+    });
+    await onMembersChanged();
+  };
+
+  const removeMembership = async (projectId: string) => {
+    await fetch("/api/admin/members", {
+      method: "DELETE", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project_id: projectId, user_id: user.id }),
+    });
+    await onMembersChanged();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-xl w-full sm:w-[480px] max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#E8E8E9] sticky top-0 bg-white">
+          <h2 className="text-base font-semibold text-[#151B26]">Edit member</h2>
+          <button onClick={onClose} className="p-1 text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><X size={16} /></button>
+        </div>
+
+        <div className="px-5 py-4 flex flex-col gap-4">
+          {/* Profile */}
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-medium text-[#6B6F76]">Name</label>
+            <input value={editName} onChange={e => setEditName(e.target.value)} placeholder="Full name"
+              className="border border-[#E8E8E9] rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#4573D9]" />
+
+            <label className="text-xs font-medium text-[#6B6F76] mt-1">Email</label>
+            <input value={editEmail} onChange={e => setEditEmail(e.target.value)} type="email" placeholder="Email"
+              className="border border-[#E8E8E9] rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#4573D9]" />
+
+            <label className="text-xs font-medium text-[#6B6F76] mt-1 flex items-center gap-1"><Key size={11} /> New password (optional)</label>
+            <input value={newPw} onChange={e => setNewPw(e.target.value)} type="password" placeholder="Leave blank to keep current password"
+              className="border border-[#E8E8E9] rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#4573D9]" />
+
+            {saveErr && <p className="text-xs text-red-500">{saveErr}</p>}
+            <div className="flex items-center gap-2 mt-1">
+              <button onClick={saveProfile} disabled={saving || !editName && !editEmail}
+                className="px-3 py-1.5 bg-[#4573D9] text-white text-sm rounded-lg hover:bg-[#3F65C4] disabled:opacity-50 flex items-center gap-1">
+                {saving && <Loader2 size={12} className="animate-spin" />} Save changes
+              </button>
+              {saved && <span className="text-xs text-[#14A454]">Saved</span>}
+            </div>
+          </div>
+
+          <div className="border-t border-[#F0F1F3] pt-4">
+            <h3 className="text-sm font-semibold text-[#151B26] mb-3">Projects & roles</h3>
+
+            {memberships.length === 0 && <p className="text-xs text-[#B0B3B8] mb-3">Not assigned to any project yet.</p>}
+            <div className="flex flex-col gap-2 mb-3">
+              {memberships.map(({ member, project }) => (
+                <div key={member.id} className="flex items-center justify-between gap-2 py-1.5 border-b border-[#F5F5F5] last:border-0">
+                  <span className="text-sm text-[#151B26] truncate">{project.name}</span>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <div className="relative">
+                      <select value={member.role} onChange={e => changeRole(project.id, e.target.value as "member" | "lead")}
+                        className="appearance-none text-xs border border-[#E8E8E9] rounded px-2 py-1 pr-5 outline-none focus:border-[#4573D9] bg-white cursor-pointer">
+                        {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                      </select>
+                      <ChevronDown size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[#6B6F76] pointer-events-none" />
+                    </div>
+                    <button onClick={() => removeMembership(project.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded"><Trash2 size={13} /></button>
                   </div>
                 </div>
               ))}
             </div>
-          </section>
 
-          {/* Project members */}
-          <section className="bg-white rounded-xl border border-[#E8E8E9] p-4 sm:p-6">
-            <h2 className="text-base font-semibold text-[#151B26] mb-4">Project Members</h2>
-            <div className="flex flex-col sm:flex-row gap-2 mb-4">
-              <select value={selProject} onChange={e => setSelProject(e.target.value)} className="flex-1 border border-[#E8E8E9] rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#4573D9]">
-                <option value="">— Project</option>
-                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-              <select value={selUser} onChange={e => setSelUser(e.target.value)} className="flex-1 border border-[#E8E8E9] rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#4573D9]">
-                <option value="">— User</option>
-                {users.map(u => <option key={u.id} value={u.id}>{u.name ? `${u.name} (${u.email})` : u.email}</option>)}
-              </select>
-              <button onClick={addMember} disabled={!selProject || !selUser || adding} className="px-3 py-1.5 bg-[#4573D9] text-white text-sm rounded-lg hover:bg-[#3F65C4] disabled:opacity-50 flex items-center gap-1">
-                {adding ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Add
-              </button>
-            </div>
-            {members.length === 0 && <p className="text-sm text-[#B0B3B8]">No members assigned yet</p>}
-            <div className="flex flex-col divide-y divide-[#F5F5F5]">
-              {members.map(m => (
-                <div key={m.id} className="flex items-center justify-between py-2">
-                  <div>
-                    <span className="text-sm font-medium text-[#151B26]">{nameOf(m.user_id) ?? emailOf(m.user_id)}</span>
-                    <span className="text-xs text-[#B0B3B8] ml-2">→ {projectName(m.project_id)}</span>
-                  </div>
-                  <button onClick={() => removeMember(m.project_id, m.user_id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded"><Trash2 size={13} /></button>
-                </div>
-              ))}
-            </div>
-          </section>
-        </div>
-      )}
+            {availableProjects.length > 0 && (
+              <div className="flex gap-2">
+                <select value={addProjectId} onChange={e => setAddProjectId(e.target.value)}
+                  className="flex-1 border border-[#E8E8E9] rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#4573D9]">
+                  <option value="">— Add to project</option>
+                  {availableProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+                <select value={addRole} onChange={e => setAddRole(e.target.value as "member" | "lead")}
+                  className="border border-[#E8E8E9] rounded-lg px-2 py-1.5 text-sm outline-none focus:border-[#4573D9]">
+                  {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                </select>
+                <button onClick={addMembership} disabled={!addProjectId || adding}
+                  className="px-3 py-1.5 bg-[#4573D9] text-white text-sm rounded-lg hover:bg-[#3F65C4] disabled:opacity-50 flex items-center gap-1 flex-shrink-0">
+                  {adding ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Add
+                </button>
+              </div>
+            )}
+          </div>
 
-      {/* Edit name modal */}
-      {nameUserId && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl p-6 w-[calc(100vw-2rem)] sm:w-80">
-            <h3 className="text-sm font-semibold mb-3">Edit Name</h3>
-            <input autoFocus value={editName} onChange={e => setEditName(e.target.value)} placeholder="Full name"
-              onKeyDown={e => { if (e.key === "Enter") saveName(); if (e.key === "Escape") setNameUserId(null); }}
-              className="w-full border border-[#E8E8E9] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#4573D9] mb-3" />
-            <div className="flex gap-2 justify-end">
-              <button onClick={() => setNameUserId(null)} className="px-3 py-1.5 text-sm text-[#6B6F76] hover:bg-[#F5F5F5] rounded-lg">Cancel</button>
-              <button onClick={saveName} disabled={savingName} className="px-3 py-1.5 bg-[#4573D9] text-white text-sm rounded-lg disabled:opacity-50 flex items-center gap-1">
-                {savingName && <Loader2 size={12} className="animate-spin" />} Save
-              </button>
-            </div>
+          <div className="border-t border-[#F0F1F3] pt-4">
+            <button onClick={onDelete} className="flex items-center gap-1.5 text-sm text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg -mx-3">
+              <Trash2 size={13} /> Delete member
+            </button>
           </div>
         </div>
-      )}
-
-      {/* Change password modal */}
-      {pwUserId && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl p-6 w-[calc(100vw-2rem)] sm:w-80">
-            <h3 className="text-sm font-semibold mb-3">Change Password</h3>
-            <input autoFocus value={newPw} onChange={e => setNewPw(e.target.value)} type="password" placeholder="New password"
-              className="w-full border border-[#E8E8E9] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#4573D9] mb-3" />
-            <div className="flex gap-2 justify-end">
-              <button onClick={() => setPwUserId(null)} className="px-3 py-1.5 text-sm text-[#6B6F76] hover:bg-[#F5F5F5] rounded-lg">Cancel</button>
-              <button onClick={changePassword} disabled={!newPw || saving} className="px-3 py-1.5 bg-[#4573D9] text-white text-sm rounded-lg disabled:opacity-50 flex items-center gap-1">
-                {saving && <Loader2 size={12} className="animate-spin" />} Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }

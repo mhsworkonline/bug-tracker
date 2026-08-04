@@ -28,14 +28,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const body = await req.json();
   const sb = adminClient();
 
-  if (body.name !== undefined) {
-    const { error } = await sb.auth.admin.updateUserById(id, { user_metadata: { name: body.name } });
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ ok: true });
-  }
+  const update: { user_metadata?: { name: string }; email?: string; password?: string } = {};
+  if (body.name !== undefined) update.user_metadata = { name: body.name };
+  if (body.email !== undefined) update.email = body.email;
+  if (body.password) update.password = body.password;
 
-  if (!body.password) return NextResponse.json({ error: "password required" }, { status: 400 });
-  const { error } = await sb.auth.admin.updateUserById(id, { password: body.password });
+  if (Object.keys(update).length === 0) return NextResponse.json({ error: "nothing to update" }, { status: 400 });
+
+  const { error } = await sb.auth.admin.updateUserById(id, update);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

@@ -15,7 +15,12 @@ const SETTINGS_TABS = [
   { key: "integrations", label: "Integrations",      icon: Puzzle },
 ];
 
-export default function AdminSidebar() {
+interface Props {
+  open: boolean;
+  onClose: () => void;
+}
+
+export default function AdminSidebar({ open, onClose }: Props) {
   const pathname     = usePathname();
   const searchParams = useSearchParams();
   const activeTab    = searchParams.get("tab") ?? "general";
@@ -31,6 +36,7 @@ export default function AdminSidebar() {
     return (
       <Link
         href={href}
+        onClick={onClose}
         className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors ${
           active
             ? "bg-[#EEF2FB] text-[#4573D9] font-medium"
@@ -44,12 +50,21 @@ export default function AdminSidebar() {
   };
 
   return (
-    <aside className="w-56 flex-shrink-0 border-r border-[#E8E8E9] bg-white min-h-full flex flex-col">
+    <>
+      {open && (
+        <div className="fixed inset-0 bg-black/30 z-40 sm:hidden" onClick={onClose} />
+      )}
+      <aside
+        className={`absolute sm:static inset-y-0 left-0 z-50 sm:z-auto w-64 sm:w-56 flex-shrink-0 border-r border-[#E8E8E9] bg-white min-h-full flex flex-col transition-transform duration-200 ease-out ${
+          open ? "translate-x-0" : "-translate-x-full sm:translate-x-0"
+        }`}
+      >
       <nav className="flex flex-col gap-0.5 p-3 flex-1">
 
         {/* Back */}
         <Link
           href="/projects"
+          onClick={onClose}
           className="flex items-center gap-2 px-3 py-2 text-xs text-[#9EA3AA] hover:text-[#6B6F76] mb-1"
         >
           <FolderOpen size={13} /> Browse projects
@@ -89,6 +104,7 @@ export default function AdminSidebar() {
                 <Link
                   key={t.key}
                   href={`/admin/settings?tab=${t.key}`}
+                  onClick={onClose}
                   className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md text-sm transition-colors ${
                     active
                       ? "bg-[#EEF2FB] text-[#4573D9] font-medium"
@@ -103,6 +119,7 @@ export default function AdminSidebar() {
           </div>
         )}
       </nav>
-    </aside>
+      </aside>
+    </>
   );
 }

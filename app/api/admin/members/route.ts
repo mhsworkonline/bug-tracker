@@ -16,9 +16,11 @@ export async function GET(req: NextRequest) {
   if (!user || user.email !== ADMIN_EMAIL) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const projectId = req.nextUrl.searchParams.get("project_id");
+  const userId = req.nextUrl.searchParams.get("user_id");
   const sb = adminClient();
   const q = sb.from("BT_project_members").select("*");
   if (projectId) q.eq("project_id", projectId);
+  if (userId) q.eq("user_id", userId);
   const { data, error } = await q;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ members: data });
