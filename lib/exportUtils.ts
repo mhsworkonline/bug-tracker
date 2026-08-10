@@ -111,10 +111,29 @@ export function exportToCSV(project: Project, sections: Section[], tasks: Task[]
   download(`${project.name}-tasks.csv`, "text/csv", csv);
 }
 
-export async function exportToExcel(project: Project, sections: Section[], tasks: Task[], taskTypes: TaskTypeOption[]) {
-  const XLSX = await import("xlsx-js-style");
-  if (!tasks.length) { alert("No tasks to export."); return; }
+// Excel sheet name limits: <=31 chars, no \ / ? * [ ] : ; dedupes clashing names.
+function safeSheetName(name: string, used: Set<string>): string {
+  let base = name.replace(/[\\/?*[\]:]/g, "").trim() || "Project";
+  if (base.length > 31) base = base.slice(0, 31);
+  let candidate = base;
+  let n = 2;
+  while (used.has(candidate.toLowerCase())) {
+    const suffix = ` (${n})`;
+    candidate = base.slice(0, 31 - suffix.length) + suffix;
+    n++;
+  }
+  used.add(candidate.toLowerCase());
+  return candidate;
+}
 
+// Builds and styles a single project's worksheet. Shared by single- and multi-project Excel export.
+function buildProjectSheet(
+  XLSX: typeof import("xlsx-js-style"),
+  project: Project,
+  sections: Section[],
+  tasks: Task[],
+  taskTypes: TaskTypeOption[],
+) {
   const headers    = buildHeaders(tasks);
   const rows       = taskRows(sections, tasks, taskTypes, project);
   const totalRows  = rows.length + 1; // +1 for header
@@ -235,16 +254,18 @@ export async function exportToExcel(project: Project, sections: Section[], tasks
     return { wch: Math.max(12, h.length + 4) };
   });
 
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Tasks");
+  return ws;
+}
 
-  // Inject freeze pane via raw XML
+// Freezes the header row on every sheet in the workbook (raw XML patch — xlsx-js-style has no API for this).
+async function freezeHeaderRowAndDownload(XLSX: typeof import("xlsx-js-style"), wb: import("xlsx-js-style").WorkBook, filename: string) {
   const { unzipSync, zipSync, strFromU8, strToU8 } = await import("fflate");
   const raw   = new Uint8Array(XLSX.write(wb, { type: "array", bookType: "xlsx" }) as number[]);
   const files = unzipSync(raw);
-  const sheetKey = "xl/worksheets/sheet1.xml";
-  if (files[sheetKey]) {
-    const pane = '<pane xSplit="0" ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft"/>';
+  const pane = '<pane xSplit="0" ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft"/>';
+  for (let i = 1; i <= wb.SheetNames.length; i++) {
+    const sheetKey = `xl/worksheets/sheet${i}.xml`;
+    if (!files[sheetKey]) continue;
     let xml = strFromU8(files[sheetKey]);
     xml = xml
       .replace(/(<sheetView\b[^>]*)\/>/,             `$1>${pane}</sheetView>`)
@@ -255,8 +276,40 @@ export async function exportToExcel(project: Project, sections: Section[], tasks
   const blob = new Blob([zipSync(files)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement("a");
-  a.href = url; a.download = `${project.name}-tasks.xlsx`; a.click();
+  a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
+}
+
+export async function exportToExcel(project: Project, sections: Section[], tasks: Task[], taskTypes: TaskTypeOption[]) {
+  const XLSX = await import("xlsx-js-style");
+  if (!tasks.length) { alert("No tasks to export."); return; }
+
+  const ws = buildProjectSheet(XLSX, project, sections, tasks, taskTypes);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Tasks");
+  await freezeHeaderRowAndDownload(XLSX, wb, `${project.name}-tasks.xlsx`);
+}
+
+// One workbook, one tab per selected project. Projects with no tasks still get a header-only tab.
+export async function exportProjectsToExcel(
+  projects: Project[],
+  dataByProject: Map<string, { sections: Section[]; tasks: Task[] }>,
+  taskTypes: TaskTypeOption[],
+) {
+  if (!projects.length) { alert("No projects selected."); return; }
+  const XLSX = await import("xlsx-js-style");
+
+  const wb = XLSX.utils.book_new();
+  const usedNames = new Set<string>();
+  for (const project of projects) {
+    const data = dataByProject.get(project.id) ?? { sections: [], tasks: [] };
+    const ws = buildProjectSheet(XLSX, project, data.sections, data.tasks, taskTypes);
+    const sheetName = safeSheetName(project.name, usedNames);
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  }
+
+  const stamp = new Date().toISOString().slice(0, 10);
+  await freezeHeaderRowAndDownload(XLSX, wb, `bug-tracker-export-${stamp}.xlsx`);
 }
 
 export async function exportToPDF(project: Project, sections: Section[], tasks: Task[], taskTypes: TaskTypeOption[]) {

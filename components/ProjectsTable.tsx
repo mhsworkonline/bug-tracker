@@ -9,6 +9,9 @@ import { useStore } from "@/lib/store";
 interface Props {
   projects: Project[];
   isAdmin?: boolean;
+  selectMode?: boolean;
+  selected?: Set<string>;
+  onToggleSelect?: (id: string) => void;
 }
 
 function RowMenu({ project }: { project: Project }) {
@@ -37,7 +40,7 @@ function RowMenu({ project }: { project: Project }) {
   return (
     <div className="relative" ref={ref}>
       <button
-        onClick={e => { e.preventDefault(); setOpen(v => !v); }}
+        onClick={e => { e.preventDefault(); e.stopPropagation(); setOpen(v => !v); }}
         className="text-[#6B6F76] text-sm px-1 hover:text-[#151B26] rounded hover:bg-[#F5F5F5] leading-none"
       >
         ···
@@ -65,7 +68,7 @@ function RowMenu({ project }: { project: Project }) {
   );
 }
 
-export default function ProjectsTable({ projects, isAdmin }: Props) {
+export default function ProjectsTable({ projects, isAdmin, selectMode, selected, onToggleSelect }: Props) {
   if (projects.length === 0) {
     return (
       <div className="border border-[#E8E8E9] rounded-[6px] px-6 py-12 text-center text-sm text-[#6B6F76]">
@@ -77,6 +80,22 @@ export default function ProjectsTable({ projects, isAdmin }: Props) {
   return (
     <div className="border border-[#E8E8E9] rounded-[6px] overflow-hidden">
       <div className="flex items-center px-4 py-2.5 bg-[#FAFBFC] border-b border-[#E8E8E9]">
+        {selectMode && (
+          <input
+            type="checkbox"
+            aria-label="Select all projects"
+            className="w-4 h-4 mr-3 flex-shrink-0 accent-[#4573D9]"
+            checked={projects.length > 0 && projects.every(p => selected?.has(p.id))}
+            onChange={() => {
+              const allSelected = projects.every(p => selected?.has(p.id));
+              projects.forEach(p => {
+                const isSel = selected?.has(p.id) ?? false;
+                if (allSelected && isSel) onToggleSelect?.(p.id);
+                if (!allSelected && !isSel) onToggleSelect?.(p.id);
+              });
+            }}
+          />
+        )}
         <div className="flex-1 text-xs font-medium text-[#6B6F76]">Name</div>
         <div className="hidden sm:block w-32 text-xs font-medium text-[#6B6F76]">Members</div>
         <div className="hidden sm:block w-32 text-xs font-medium text-[#6B6F76]">Portfolios</div>
@@ -89,10 +108,21 @@ export default function ProjectsTable({ projects, isAdmin }: Props) {
       {projects.map((p, i) => (
         <div
           key={p.id}
+          onClick={selectMode ? () => onToggleSelect?.(p.id) : undefined}
           className={`flex items-center px-4 py-3 hover:bg-[#FAFBFC] transition-colors ${
             i < projects.length - 1 ? "border-b border-[#E8E8E9]" : ""
-          } ${!p.is_active ? "opacity-60" : ""}`}
+          } ${!p.is_active ? "opacity-60" : ""} ${selectMode ? "cursor-pointer" : ""}`}
         >
+          {selectMode && (
+            <input
+              type="checkbox"
+              aria-label={`Select ${p.name}`}
+              className="w-4 h-4 mr-3 flex-shrink-0 accent-[#4573D9]"
+              checked={selected?.has(p.id) ?? false}
+              onChange={() => onToggleSelect?.(p.id)}
+              onClick={e => e.stopPropagation()}
+            />
+          )}
           <div className="flex-1 flex items-center gap-3 min-w-0">
             <div
               className="w-8 h-8 rounded-[6px] flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
@@ -103,6 +133,7 @@ export default function ProjectsTable({ projects, isAdmin }: Props) {
             <div className="min-w-0">
               <Link
                 href={`/projects/${p.id}`}
+                onClick={selectMode ? (e) => { e.preventDefault(); onToggleSelect?.(p.id); } : undefined}
                 className="text-sm font-semibold text-[#151B26] hover:underline truncate block"
               >
                 {p.name}

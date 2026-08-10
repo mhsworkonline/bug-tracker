@@ -1,11 +1,14 @@
 "use client";
 import { useState } from "react";
-import { Search, Plus, ChevronDown, Loader2, Settings, LogOut, Users } from "lucide-react";
+import { Search, Plus, ChevronDown, Loader2, Settings, LogOut, Users, FileSpreadsheet, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
 import ProjectsTable from "@/components/ProjectsTable";
 import { createSupabaseBrowser } from "@/lib/auth-browser";
+import { useAdminSettings } from "@/lib/adminSettingsContext";
+import { exportProjectsToExcel } from "@/lib/exportUtils";
+import { fetchProjectsExportData } from "@/lib/fetchProjectExportData";
 
 interface Props {
   isAdmin: boolean;
@@ -16,13 +19,42 @@ interface Props {
 export default function ProjectsPageClient({ isAdmin, userEmail, allowedProjectIds }: Props) {
   const router = useRouter();
   const { projects, loading } = useStore();
+  const { taskTypes, membersCanExportExcel } = useAdminSettings();
   const [query, setQuery] = useState("");
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [exporting, setExporting] = useState(false);
+
+  const canExport = isAdmin || membersCanExportExcel;
 
   const visible = projects.filter(p => {
     if (!isAdmin && p.is_active === false) return false;
     if (allowedProjectIds !== null && !allowedProjectIds.includes(p.id)) return false;
     return p.name.toLowerCase().includes(query.toLowerCase());
   });
+
+  const exitSelectMode = () => { setSelectMode(false); setSelected(new Set()); };
+
+  const toggleSelect = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const handleBulkExport = async () => {
+    const selectedProjects = visible.filter(p => selected.has(p.id));
+    if (!selectedProjects.length) return;
+    setExporting(true);
+    try {
+      const dataByProject = await fetchProjectsExportData(selectedProjects.map(p => p.id));
+      await exportProjectsToExcel(selectedProjects, dataByProject, taskTypes);
+      exitSelectMode();
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const handleLogout = async () => {
     const sb = createSupabaseBrowser();
@@ -33,7 +65,7 @@ export default function ProjectsPageClient({ isAdmin, userEmail, allowedProjectI
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="max-w-5xl mx-auto px-4 sm:px-8 py-6 sm:py-8">
+      <div className={`max-w-5xl mx-auto px-4 sm:px-8 py-6 sm:py-8 ${selectMode && selected.size > 0 ? "pb-20" : ""}`}>
         <div className="flex items-center justify-between mb-6 gap-2">
           <h1 className="text-xl sm:text-2xl font-bold text-[#151B26]">Browse projects</h1>
           <div className="flex items-center gap-1 sm:gap-2">
@@ -66,6 +98,17 @@ export default function ProjectsPageClient({ isAdmin, userEmail, allowedProjectI
                 <Plus size={14} /> <span className="hidden sm:inline">Create project</span><span className="sm:hidden">New</span>
               </Link>
             )}
+            {canExport && visible.length > 0 && (
+              selectMode ? (
+                <button onClick={exitSelectMode} className="flex items-center gap-1.5 px-3 sm:px-4 py-2 border border-[#E8E8E9] text-sm text-[#151B26] rounded-md hover:bg-[#F5F5F5]">
+                  <X size={14} /> Cancel
+                </button>
+              ) : (
+                <button onClick={() => setSelectMode(true)} className="flex items-center gap-1.5 px-3 sm:px-4 py-2 border border-[#E8E8E9] text-sm text-[#151B26] rounded-md hover:bg-[#F5F5F5]" title="Export projects to Excel">
+                  <FileSpreadsheet size={14} /> <span className="hidden sm:inline">Export</span>
+                </button>
+              )
+            )}
             <button onClick={handleLogout} className="p-2 text-[#6B6F76] hover:bg-[#F5F5F5] rounded-md" title="Logout">
               <LogOut size={16} />
             </button>
@@ -92,9 +135,36 @@ export default function ProjectsPageClient({ isAdmin, userEmail, allowedProjectI
             <Loader2 size={16} className="animate-spin" /> Loading projects…
           </div>
         ) : (
-          <ProjectsTable projects={visible} isAdmin={isAdmin} />
+          <ProjectsTable
+            projects={visible}
+            isAdmin={isAdmin}
+            selectMode={selectMode}
+            selected={selected}
+            onToggleSelect={toggleSelect}
+          />
         )}
       </div>
+
+      {selectMode && selected.size > 0 && (
+        <div className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-[#E8E8E9] shadow-[0_-2px_8px_rgba(0,0,0,0.06)] px-4 py-3 sm:px-8">
+          <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
+            <span className="text-sm text-[#151B26]">{selected.size} project{selected.size === 1 ? "" : "s"} selected</span>
+            <div className="flex items-center gap-2">
+              <button onClick={exitSelectMode} disabled={exporting} className="px-3 sm:px-4 py-2 text-sm text-[#6B6F76] hover:bg-[#F5F5F5] rounded-md disabled:opacity-50">
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkExport}
+                disabled={exporting}
+                className="flex items-center gap-1.5 px-3 sm:px-4 py-2 bg-[#4573D9] text-white text-sm rounded-md hover:bg-[#3F65C4] disabled:opacity-60"
+              >
+                {exporting ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={14} />}
+                {exporting ? "Exporting…" : `Export ${selected.size}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
