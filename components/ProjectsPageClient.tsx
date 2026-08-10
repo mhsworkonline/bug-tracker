@@ -1,6 +1,6 @@
 "use client";
-import { useState } from "react";
-import { Search, Plus, ChevronDown, Loader2, Settings, LogOut, Users, FileSpreadsheet, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Search, Plus, ChevronDown, Loader2, Settings, LogOut, Users, FileSpreadsheet, X, CheckCircle2, Circle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
@@ -9,6 +9,7 @@ import { createSupabaseBrowser } from "@/lib/auth-browser";
 import { useAdminSettings } from "@/lib/adminSettingsContext";
 import { exportProjectsToExcel } from "@/lib/exportUtils";
 import { fetchProjectsExportData } from "@/lib/fetchProjectExportData";
+import { searchTasksAcrossProjects, type TaskSearchHit } from "@/lib/searchAcrossProjects";
 
 interface Props {
   isAdmin: boolean;
@@ -19,11 +20,13 @@ interface Props {
 export default function ProjectsPageClient({ isAdmin, userEmail, allowedProjectIds }: Props) {
   const router = useRouter();
   const { projects, loading } = useStore();
-  const { taskTypes, membersCanExportExcel } = useAdminSettings();
+  const { taskTypes, membersCanExportExcel, statusByKey } = useAdminSettings();
   const [query, setQuery] = useState("");
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState(false);
+  const [taskResults, setTaskResults] = useState<TaskSearchHit[]>([]);
+  const [searchingTasks, setSearchingTasks] = useState(false);
 
   const canExport = isAdmin || membersCanExportExcel;
 
@@ -32,6 +35,20 @@ export default function ProjectsPageClient({ isAdmin, userEmail, allowedProjectI
     if (allowedProjectIds !== null && !allowedProjectIds.includes(p.id)) return false;
     return p.name.toLowerCase().includes(query.toLowerCase());
   });
+
+  // Cross-project task search — same query box, respects the same allow-list as the project list above.
+  useEffect(() => {
+    if (!query.trim()) { setTaskResults([]); setSearchingTasks(false); return; }
+    setSearchingTasks(true);
+    const t = setTimeout(async () => {
+      const hits = await searchTasksAcrossProjects(query, allowedProjectIds, 20);
+      setTaskResults(hits);
+      setSearchingTasks(false);
+    }, 200);
+    return () => clearTimeout(t);
+  }, [query, allowedProjectIds]);
+
+  const projectById = (id: string) => projects.find(p => p.id === id);
 
   const exitSelectMode = () => { setSelectMode(false); setSelected(new Set()); };
 
@@ -130,9 +147,49 @@ export default function ProjectsPageClient({ isAdmin, userEmail, allowedProjectI
           </div>
         )}
 
+        {query.trim() && (searchingTasks || taskResults.length > 0) && (
+          <div className="mb-5 border border-[#E8E8E9] rounded-[6px] overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-2.5 bg-[#FAFBFC] border-b border-[#E8E8E9]">
+              <span className="text-xs font-medium text-[#6B6F76]">Matching tasks</span>
+              {searchingTasks && <Loader2 size={12} className="animate-spin text-[#B0B3B8]" />}
+            </div>
+            {taskResults.map((t, i) => {
+              const proj = projectById(t.project_id);
+              const status = statusByKey(t.status);
+              return (
+                <Link
+                  key={t.id}
+                  href={`/projects/${t.project_id}/tasks/${t.id}`}
+                  className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-[#FAFBFC] transition-colors ${i < taskResults.length - 1 ? "border-b border-[#F0F1F3]" : ""}`}
+                >
+                  {t.completed
+                    ? <CheckCircle2 size={15} className="text-green-500 flex-shrink-0" />
+                    : <Circle size={15} className="text-[#C8C9CC] flex-shrink-0" />}
+                  <span className={`flex-1 min-w-0 text-sm truncate ${t.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`}>{t.name}</span>
+                  {proj && (
+                    <span className="hidden sm:flex items-center gap-1.5 flex-shrink-0 text-xs text-[#6B6F76]">
+                      <span className="w-4 h-4 rounded flex items-center justify-center text-white text-[9px] font-bold" style={{ background: proj.icon_bg }}>
+                        {proj.name[0]?.toUpperCase()}
+                      </span>
+                      {proj.name}
+                    </span>
+                  )}
+                  <span className="flex-shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-full" style={{ background: status.bg, color: status.text }}>
+                    {status.label}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+
         {loading ? (
           <div className="flex items-center justify-center py-20 gap-2 text-[#6B6F76] text-sm">
             <Loader2 size={16} className="animate-spin" /> Loading projects…
+          </div>
+        ) : query.trim() && visible.length === 0 && taskResults.length === 0 && !searchingTasks ? (
+          <div className="border border-[#E8E8E9] rounded-[6px] px-6 py-12 text-center text-sm text-[#6B6F76]">
+            No projects or tasks match &quot;{query}&quot;.
           </div>
         ) : (
           <ProjectsTable

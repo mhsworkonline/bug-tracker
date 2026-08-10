@@ -2,7 +2,11 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { createSupabaseBrowser } from "@/lib/auth-browser";
+import { ADMIN_EMAIL } from "@/lib/constants";
+import { searchProjectsByName, searchTasksAcrossProjects } from "@/lib/searchAcrossProjects";
 import { Search, FolderOpen, CheckCircle2, Circle, X } from "lucide-react";
 
 interface Result {
@@ -27,8 +31,24 @@ export default function GlobalSearch() {
   const [results, setResults] = useState<Result[]>([]);
   const [loading, setLoading] = useState(false);
   const [cursor, setCursor]   = useState(0);
+  // null = admin / unrestricted; [] = no accessible projects; [...] = restricted list.
+  const [allowedProjectIds, setAllowedProjectIds] = useState<string[] | null>(null);
+  const [accessReady, setAccessReady] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef  = useRef<HTMLDivElement>(null);
+
+  // Resolve which projects this user may search once, on mount — search waits on this so an
+  // unresolved allow-list is never mistaken for "unrestricted".
+  useEffect(() => {
+    createSupabaseBrowser().auth.getUser().then(async ({ data }) => {
+      const email = data.user?.email;
+      if (!email || email === ADMIN_EMAIL) { setAllowedProjectIds(null); setAccessReady(true); return; }
+      const res = await fetch(`/api/projects/user-projects?email=${encodeURIComponent(email)}`);
+      const json = await res.json();
+      setAllowedProjectIds((json.projects ?? []).map((p: { id: string }) => p.id));
+      setAccessReady(true);
+    });
+  }, []);
 
   // Open on Cmd/Ctrl+K
   useEffect(() => {
@@ -50,12 +70,12 @@ export default function GlobalSearch() {
   const search = useCallback(async (q: string) => {
     if (!q.trim()) { setResults([]); return; }
     setLoading(true);
-    const [{ data: projects }, { data: tasks }] = await Promise.all([
-      supabase.from("BT_projects").select("id, name, icon_bg").ilike("name", `%${q}%`).limit(5),
-      supabase.from("BT_tasks").select("id, name, status, completed, project_id").ilike("name", `%${q}%`).limit(10),
+    const [projects, tasks] = await Promise.all([
+      searchProjectsByName(q, allowedProjectIds, 5),
+      searchTasksAcrossProjects(q, allowedProjectIds, 10),
     ]);
 
-    const projectIds = [...new Set((tasks ?? []).map(t => t.project_id))];
+    const projectIds = [...new Set(tasks.map(t => t.project_id))];
     let projMap: Record<string, string> = {};
     if (projectIds.length) {
       const { data: ps } = await supabase.from("BT_projects").select("id, name").in("id", projectIds);
@@ -63,22 +83,31 @@ export default function GlobalSearch() {
     }
 
     const r: Result[] = [
-      ...(projects ?? []).map(p => ({ type: "project" as const, id: p.id, name: p.name, color: p.icon_bg })),
-      ...(tasks ?? []).map(t => ({ type: "task" as const, id: t.id, name: t.name, projectId: t.project_id, subtitle: projMap[t.project_id] ?? "", completed: t.completed, subtitle2: STATUS_LABELS[t.status] ?? t.status })),
+      ...projects.map(p => ({ type: "project" as const, id: p.id, name: p.name, color: p.icon_bg })),
+      ...tasks.map(t => ({ type: "task" as const, id: t.id, name: t.name, projectId: t.project_id, subtitle: projMap[t.project_id] ?? "", completed: t.completed, subtitle2: STATUS_LABELS[t.status] ?? t.status })),
     ];
     setResults(r);
     setCursor(0);
     setLoading(false);
-  }, []);
+  }, [allowedProjectIds]);
 
   useEffect(() => {
+    if (!accessReady) return; // don't search until we know which projects this user may see
     const t = setTimeout(() => search(query), 200);
     return () => clearTimeout(t);
-  }, [query, search]);
+  }, [query, search, accessReady]);
+
+  const resultHref = (r: Result) => r.type === "project" ? `/projects/${r.id}` : `/projects/${r.projectId}/tasks/${r.id}`;
 
   const navigate = (r: Result) => {
-    if (r.type === "project") router.push(`/projects/${r.id}`);
-    else router.push(`/projects/${r.projectId}/tasks/${r.id}`);
+    router.push(resultHref(r));
+    setOpen(false);
+  };
+
+  // Real <a> clicks with a modifier (Ctrl/Cmd/Shift) or the middle mouse button are the
+  // browser's "open in new tab" gesture — let it through instead of closing the modal.
+  const handleResultClick = (e: React.MouseEvent) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
     setOpen(false);
   };
 
@@ -92,13 +121,17 @@ export default function GlobalSearch() {
     listRef.current?.children[cursor]?.scrollIntoView({ block: "nearest" });
   }, [cursor]);
 
+  // Floating trigger — fixed so it stays reachable on every page, including mobile (icon-only there).
   if (!open) return (
     <button
       onClick={() => setOpen(true)}
-      className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-[#F5F5F5] border border-[#E8E8E9] rounded-lg text-sm text-[#6B6F76] hover:bg-[#EFEFEF] transition-colors"
+      className="fixed bottom-4 right-4 z-[150] flex items-center gap-2 px-3 py-2.5 sm:py-1.5 bg-white sm:bg-[#F5F5F5] border border-[#E8E8E9] rounded-full sm:rounded-lg shadow-lg sm:shadow-none text-sm text-[#6B6F76] hover:bg-[#EFEFEF] transition-colors"
       title="Search (Ctrl+K)"
     >
-      <Search size={13} /> Search <kbd className="text-[10px] bg-white border border-[#E8E8E9] px-1 rounded ml-1">⌘K</kbd>
+      <Search size={15} className="sm:hidden" />
+      <Search size={13} className="hidden sm:block" />
+      <span className="hidden sm:inline">Search</span>
+      <kbd className="hidden sm:inline text-[10px] bg-white border border-[#E8E8E9] px-1 rounded ml-1">⌘K</kbd>
     </button>
   );
 
@@ -139,9 +172,10 @@ export default function GlobalSearch() {
                   <>
                     <div className="px-4 py-1.5 text-[10px] font-semibold text-[#9EA3AA] uppercase tracking-wide bg-[#FAFBFC] border-b border-[#F0F1F3]">Projects</div>
                     {projects.map(r => { idx++; const i = idx; return (
-                      <div
+                      <Link
                         key={r.id}
-                        onClick={() => navigate(r)}
+                        href={resultHref(r)}
+                        onClick={handleResultClick}
                         className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${cursor === i ? "bg-[#EEF2FB]" : "hover:bg-[#FAFBFC]"}`}
                       >
                         <div className="w-7 h-7 rounded-md flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ background: r.color }}>
@@ -151,7 +185,7 @@ export default function GlobalSearch() {
                           <div className="text-sm font-medium text-[#151B26] truncate">{r.name}</div>
                         </div>
                         <FolderOpen size={14} className="text-[#B0B3B8] flex-shrink-0" />
-                      </div>
+                      </Link>
                     ); })}
                   </>
                 )}
@@ -159,9 +193,10 @@ export default function GlobalSearch() {
                   <>
                     <div className="px-4 py-1.5 text-[10px] font-semibold text-[#9EA3AA] uppercase tracking-wide bg-[#FAFBFC] border-b border-[#F0F1F3]">Tasks</div>
                     {tasks.map(r => { idx++; const i = idx; return (
-                      <div
+                      <Link
                         key={r.id}
-                        onClick={() => navigate(r)}
+                        href={resultHref(r)}
+                        onClick={handleResultClick}
                         className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${cursor === i ? "bg-[#EEF2FB]" : "hover:bg-[#FAFBFC]"}`}
                       >
                         <div className="flex-shrink-0">
@@ -173,7 +208,7 @@ export default function GlobalSearch() {
                           <div className={`text-sm truncate ${r.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`}>{r.name}</div>
                           {r.subtitle && <div className="text-xs text-[#9EA3AA] truncate">{r.subtitle}</div>}
                         </div>
-                      </div>
+                      </Link>
                     ); })}
                   </>
                 )}
