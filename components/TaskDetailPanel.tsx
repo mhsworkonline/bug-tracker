@@ -435,13 +435,17 @@ export default function TaskDetailPanel({
     setJiraExporting(false);
   };
 
-  const handleDelete    = async () => { await deleteTask(task.id); onClose(); };
+  const handleDelete    = async () => { committedRef.current = true; await deleteTask(task.id); onClose(); };
 
   const section     = sections.find((s) => s.id === task.section_id);
   const attachments = task.BT_attachments ?? [];
 
   // Commit saves unsaved title; deletes task if truly empty. Used on every exit path.
+  // Guarded so navigate → unmount (or ESC → unmount) can't double-fire it.
+  const committedRef = useRef(false);
   const commitOrDelete = () => {
+    if (committedRef.current) return;
+    committedRef.current = true;
     if (titleSaveTimer.current) clearTimeout(titleSaveTimer.current);
     const name = titleDraft.trim();
     if (name && name !== task.name) updateTask(task.id, { name });
@@ -450,6 +454,26 @@ export default function TaskDetailPanel({
 
   const handleClose    = () => { commitOrDelete(); onClose(); };
   const handleNavigate = (targetId: string) => { commitOrDelete(); onOpenTask(targetId); };
+
+  // Catch-all: any exit path that unmounts the panel without going through handleClose/ESC
+  // (clicking another task row, search/filter hiding this task, browser back, etc.) must
+  // still clean up a task left blank. Ref keeps the cleanup call reading the latest closure.
+  //
+  // The commit is deferred a tick rather than run straight from the cleanup function because
+  // React Strict Mode (dev only) mounts every component, immediately unmounts it, then remounts
+  // it — synchronously, same tick — to surface effect bugs; state/refs survive that cycle. Firing
+  // synchronously would delete a just-created blank task before the "real" mount ever showed it.
+  // Deferring lets the following mount (real remount, or Strict Mode's synthetic one) cancel the
+  // pending commit; only an unmount with no mount after it lets the timeout actually fire.
+  const commitOrDeleteRef = useRef(commitOrDelete);
+  useEffect(() => { commitOrDeleteRef.current = commitOrDelete; });
+  const pendingUnmountCommit = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (pendingUnmountCommit.current) { clearTimeout(pendingUnmountCommit.current); pendingUnmountCommit.current = null; }
+    return () => {
+      pendingUnmountCommit.current = setTimeout(() => { commitOrDeleteRef.current(); }, 0);
+    };
+  }, []);
 
   // Capture-phase ESC listener — fires before TaskList's bubble-phase window handler.
   // Stops propagation so TaskList never sees the event.

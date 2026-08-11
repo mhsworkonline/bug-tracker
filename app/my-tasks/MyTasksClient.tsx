@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { CheckCircle2, Circle, Calendar, ArrowLeft, Loader2 } from "lucide-react";
 
-interface MyTask {
+export interface MyTask {
   id: string;
   name: string;
   status: string;
@@ -54,14 +54,17 @@ const PRIORITY_DOT: Record<string, string> = {
 
 type GroupBy = "status" | "project" | "due_date";
 
-export default function MyTasksClient({ userEmail }: { userEmail: string }) {
+export default function MyTasksClient({ userEmail, initialTasks }: { userEmail: string; initialTasks?: MyTask[] }) {
   const router = useRouter();
-  const [tasks, setTasks]       = useState<MyTask[]>([]);
-  const [loading, setLoading]   = useState(true);
+  const [tasks, setTasks]       = useState<MyTask[]>(initialTasks ?? []);
+  const [loading, setLoading]   = useState(!initialTasks);
   const [groupBy, setGroupBy]   = useState<GroupBy>("status");
   const [showDone, setShowDone] = useState(false);
 
   useEffect(() => {
+    // Server already fetched the initial list (see page.tsx) — no need to redo it on mount.
+    if (initialTasks) return;
+
     async function load() {
       const { data: taskRows } = await supabase
         .from("BT_tasks")
@@ -88,6 +91,7 @@ export default function MyTasksClient({ userEmail }: { userEmail: string }) {
       setLoading(false);
     }
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userEmail]);
 
   const visible = showDone ? tasks : tasks.filter(t => !t.completed);

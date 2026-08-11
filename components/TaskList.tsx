@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import {
   Star, ChevronDown, ChevronRight, ChevronUp, Share2, Settings2, Filter, ArrowUpDown,
@@ -10,15 +11,13 @@ import TaskDetailPanel from "@/components/TaskDetailPanel";
 import CustomizePanel from "@/components/CustomizePanel";
 import ProjectDropdownMenu from "@/components/ProjectDropdownMenu";
 import EditProjectModal from "@/components/EditProjectModal";
-import MembersPanel from "@/components/MembersPanel";
-import ImportModal from "@/components/ImportModal";
 import FilterPanel, { type ActiveFilters, DEFAULT_FILTERS } from "@/components/FilterPanel";
 import SortDropdown, { type SortKey } from "@/components/SortDropdown";
 import ShowHideColumns from "@/components/ShowHideColumns";
 import StatusBadge from "@/components/StatusBadge";
 import PriorityBadge from "@/components/PriorityBadge";
 import TaskTypeBadge from "@/components/TaskTypeBadge";
-import { useProject } from "@/hooks/useProject";
+import { useProject, type InitialProjectData } from "@/hooks/useProject";
 import type { ColumnKey } from "@/lib/data";
 import { exportToCSV, exportToExcel, exportToPDF, exportToJSON } from "@/lib/exportUtils";
 import { createSupabaseBrowser } from "@/lib/auth-browser";
@@ -26,12 +25,21 @@ import { useAdminSettings } from "@/lib/adminSettingsContext";
 import { ADMIN_EMAIL } from "@/lib/constants";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useStore } from "@/lib/store";
-import BoardView from "@/components/BoardView";
-import DashboardView from "@/components/DashboardView";
-import CalendarView from "@/components/CalendarView";
-import GanttView from "@/components/GanttView";
-import InboxPanel from "@/components/InboxPanel";
-import ShareProjectModal from "@/components/ShareProjectModal";
+
+// Lazy-loaded: these pull in heavy libs (dnd-kit, recharts) or are only shown
+// on demand (modals/panels), so keep them out of the initial TaskList bundle —
+// the List view (the default) shouldn't have to wait on Board/Dashboard code.
+const ViewLoading = () => (
+  <div className="flex-1 flex items-center justify-center py-20"><Loader2 size={20} className="animate-spin text-[#9EA3AA]" /></div>
+);
+const BoardView        = dynamic(() => import("@/components/BoardView"),        { loading: ViewLoading });
+const DashboardView    = dynamic(() => import("@/components/DashboardView"),    { loading: ViewLoading });
+const CalendarView     = dynamic(() => import("@/components/CalendarView"),     { loading: ViewLoading });
+const GanttView        = dynamic(() => import("@/components/GanttView"),        { loading: ViewLoading });
+const MembersPanel     = dynamic(() => import("@/components/MembersPanel"));
+const ImportModal      = dynamic(() => import("@/components/ImportModal"));
+const InboxPanel       = dynamic(() => import("@/components/InboxPanel"));
+const ShareProjectModal = dynamic(() => import("@/components/ShareProjectModal"));
 
 const TABS = ["List","Board","Calendar","Gantt","Dashboard"];
 
@@ -106,7 +114,7 @@ function SortHeader({ label, sk, sortKey, sortDir, onSort, className }: {
   );
 }
 
-export default function TaskList({ projectId, userEmail }: { projectId: string; userEmail?: string }) {
+export default function TaskList({ projectId, userEmail, initialData }: { projectId: string; userEmail?: string; initialData?: InitialProjectData }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const handleLogout = async () => {
@@ -148,7 +156,7 @@ export default function TaskList({ projectId, userEmail }: { projectId: string; 
     addTask, updateTask, updateTaskLocal, toggleTask, duplicateTask, deleteTask,
     addAttachment, removeAttachment,
     updateColumnConfig,
-  } = useProject(projectId, userEmail);
+  } = useProject(projectId, userEmail, initialData);
 
   useEffect(() => {
     document.title = project?.name ? `${project.name} — Bug Tracker` : "Bug Tracker";

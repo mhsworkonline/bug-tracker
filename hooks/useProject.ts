@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { logActivity } from "@/lib/logActivity";
 import { notify } from "@/lib/notify";
@@ -35,16 +35,26 @@ export interface ProjectData {
   updateColumnConfig: (key: ColumnKey, visible: boolean) => Promise<void>;
 }
 
-export function useProject(projectId: string, userEmail?: string): ProjectData {
-  const [project, setProject]           = useState<Project | null>(null);
-  const [sections, setSections]         = useState<Section[]>([]);
-  const [tasks, setTasks]               = useState<Task[]>([]);
-  const [columnConfigs, setColumnConfigs] = useState<ColumnConfig[]>([]);
-  const [loading, setLoading]           = useState(true);
+// Data fetched on the server (see app/projects/[id]/page.tsx) and passed in so the
+// first paint already has content instead of blanking to a spinner while the client
+// re-fetches everything it was just handed.
+export interface InitialProjectData {
+  project: Project | null;
+  sections: Section[];
+  tasks: Task[];
+  columnConfigs: ColumnConfig[];
+}
+
+export function useProject(projectId: string, userEmail?: string, initialData?: InitialProjectData): ProjectData {
+  const [project, setProject]           = useState<Project | null>(initialData?.project ?? null);
+  const [sections, setSections]         = useState<Section[]>(initialData?.sections ?? []);
+  const [tasks, setTasks]               = useState<Task[]>(initialData?.tasks ?? []);
+  const [columnConfigs, setColumnConfigs] = useState<ColumnConfig[]>(initialData?.columnConfigs ?? []);
+  const [loading, setLoading]           = useState(!initialData);
   const [error, setError]               = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     setError(null);
     try {
       const [pRes, sRes, tRes, cRes] = await Promise.all([
@@ -84,7 +94,15 @@ export function useProject(projectId: string, userEmail?: string): ProjectData {
     }
   }, [projectId]);
 
-  useEffect(() => { load(); }, [load]);
+  // First run after a server-fetched initial paint re-syncs quietly (no spinner flash);
+  // later runs (projectId changes) behave like a normal load.
+  const initialLoadDone = useRef(false);
+  useEffect(() => {
+    load({ silent: !!initialData && !initialLoadDone.current });
+    initialLoadDone.current = true;
+    // initialData deliberately excluded — only its presence on the very first run matters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [load]);
 
   /* ── sections ── */
   const addSection = useCallback(async (name = "New section"): Promise<Section | null> => {

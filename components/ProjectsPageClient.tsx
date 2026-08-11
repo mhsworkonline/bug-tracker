@@ -1,10 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search, Plus, ChevronDown, Loader2, Settings, LogOut, Users, FileSpreadsheet, X, CheckCircle2, Circle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
-import ProjectsTable from "@/components/ProjectsTable";
+import ProjectsTable, { type ProjectSort, type SortableColumn } from "@/components/ProjectsTable";
 import { createSupabaseBrowser } from "@/lib/auth-browser";
 import { useAdminSettings } from "@/lib/adminSettingsContext";
 import { exportProjectsToExcel } from "@/lib/exportUtils";
@@ -30,11 +30,33 @@ export default function ProjectsPageClient({ isAdmin, userEmail, allowedProjectI
 
   const canExport = isAdmin || membersCanExportExcel;
 
+  const [sort, setSort] = useState<ProjectSort | null>(null);
+
   const visible = projects.filter(p => {
     if (!isAdmin && p.is_active === false) return false;
     if (allowedProjectIds !== null && !allowedProjectIds.includes(p.id)) return false;
     return p.name.toLowerCase().includes(query.toLowerCase());
   });
+
+  const sorted = useMemo(() => {
+    if (!sort) return visible;
+    const dir = sort.direction === "asc" ? 1 : -1;
+    return [...visible].sort((a, b) => {
+      if (sort.column === "name")
+        return a.name.localeCompare(b.name, undefined, { sensitivity: "base" }) * dir;
+      // updated_at (falls back to created_at for rows never modified)
+      const av = new Date(a.updated_at ?? a.created_at).getTime();
+      const bv = new Date(b.updated_at ?? b.created_at).getTime();
+      return (av - bv) * dir;
+    });
+  }, [visible, sort]);
+
+  const toggleSort = (column: SortableColumn) => {
+    setSort(prev => {
+      if (prev?.column !== column) return { column, direction: column === "updated_at" ? "desc" : "asc" };
+      return { column, direction: prev.direction === "asc" ? "desc" : "asc" };
+    });
+  };
 
   // Cross-project task search — same query box, respects the same allow-list as the project list above.
   useEffect(() => {
@@ -193,10 +215,12 @@ export default function ProjectsPageClient({ isAdmin, userEmail, allowedProjectI
           </div>
         ) : (
           <ProjectsTable
-            projects={visible}
+            projects={sorted}
             isAdmin={isAdmin}
             selectMode={selectMode}
             selected={selected}
+            sort={sort}
+            onSort={toggleSort}
             onToggleSelect={toggleSelect}
           />
         )}

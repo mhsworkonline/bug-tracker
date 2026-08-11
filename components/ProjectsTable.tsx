@@ -2,9 +2,18 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { ArrowUpDown, Archive, RotateCcw, Settings } from "lucide-react";
+import { ArrowUp, ArrowDown, ArrowUpDown, Archive, RotateCcw, Settings } from "lucide-react";
 import type { Project } from "@/lib/data";
 import { useStore } from "@/lib/store";
+
+// Members/Portfolios aren't real columns yet (no such fields on BT_projects — the table
+// currently just shows a placeholder avatar and a dash), so only Name and Last modified
+// are sortable.
+export type SortableColumn = "name" | "updated_at";
+export interface ProjectSort {
+  column: SortableColumn;
+  direction: "asc" | "desc";
+}
 
 interface Props {
   projects: Project[];
@@ -12,6 +21,24 @@ interface Props {
   selectMode?: boolean;
   selected?: Set<string>;
   onToggleSelect?: (id: string) => void;
+  sort?: ProjectSort | null;
+  onSort?: (column: SortableColumn) => void;
+}
+
+function SortHeader({ label, column, sort, onSort, className }: {
+  label: string; column: SortableColumn; sort?: ProjectSort | null; onSort?: (c: SortableColumn) => void; className: string;
+}) {
+  const active = sort?.column === column;
+  const Icon = active ? (sort!.direction === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
+  return (
+    <button
+      type="button"
+      onClick={() => onSort?.(column)}
+      className={`${className} gap-1 text-xs font-medium hover:text-[#151B26] transition-colors ${active ? "text-[#151B26]" : "text-[#6B6F76]"}`}
+    >
+      {label} <Icon size={12} />
+    </button>
+  );
 }
 
 function RowMenu({ project }: { project: Project }) {
@@ -68,7 +95,7 @@ function RowMenu({ project }: { project: Project }) {
   );
 }
 
-export default function ProjectsTable({ projects, isAdmin, selectMode, selected, onToggleSelect }: Props) {
+export default function ProjectsTable({ projects, isAdmin, selectMode, selected, onToggleSelect, sort, onSort }: Props) {
   if (projects.length === 0) {
     return (
       <div className="border border-[#E8E8E9] rounded-[6px] px-6 py-12 text-center text-sm text-[#6B6F76]">
@@ -96,12 +123,10 @@ export default function ProjectsTable({ projects, isAdmin, selectMode, selected,
             }}
           />
         )}
-        <div className="flex-1 text-xs font-medium text-[#6B6F76]">Name</div>
-        <div className="hidden sm:block w-32 text-xs font-medium text-[#6B6F76]">Members</div>
-        <div className="hidden sm:block w-32 text-xs font-medium text-[#6B6F76]">Portfolios</div>
-        <div className="hidden sm:flex w-44 items-center justify-end gap-1 text-xs font-medium text-[#6B6F76]">
-          Last modified <ArrowUpDown size={12} />
-        </div>
+        <SortHeader label="Name" column="name" sort={sort} onSort={onSort} className="flex-1 flex items-center justify-start" />
+        <div className="hidden sm:block w-32 text-xs font-medium text-[#6B6F76]" title="Not tracked yet">Members</div>
+        <div className="hidden sm:block w-32 text-xs font-medium text-[#6B6F76]" title="Not tracked yet">Portfolios</div>
+        <SortHeader label="Last modified" column="updated_at" sort={sort} onSort={onSort} className="hidden sm:flex w-44 items-center justify-end" />
         <div className="w-8" />
       </div>
 
