@@ -64,8 +64,8 @@ export default function MembersPanel({ projectId, canManage, onClose }: Props) {
   const nonMembers = allUsers.filter(u => u.email !== "admin@bugtracker.com" && !members.find(m => m.id === u.id));
 
   return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-xl w-[480px] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-[480px] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#E8E8E9]">
           <h2 className="text-base font-semibold text-[#151B26]">Project members</h2>
           <button onClick={onClose} className="p-1 text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><X size={16} /></button>

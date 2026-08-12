@@ -59,8 +59,8 @@ export default function DashboardView({ tasks, sections, projectId, projectName,
   const total = tasks.length;
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 bg-[#FAFBFC]">
-      <div className="grid grid-cols-2 gap-5 max-w-5xl">
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-[#FAFBFC]">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 max-w-5xl">
         {/* Upcoming tasks by assignee */}
         <Widget title="Upcoming tasks by assignee">
           {upcoming.length === 0
@@ -138,7 +138,7 @@ export default function DashboardView({ tasks, sections, projectId, projectName,
         </Widget>
       </div>
       {projectId && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 sm:mt-5">
           <div className="bg-white rounded-xl border border-[#E8E8E9] p-5">
             <ProjectStatusUpdates projectId={projectId} userEmail={userEmail} isAdmin={isAdmin} />
           </div>

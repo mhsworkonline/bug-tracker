@@ -64,7 +64,7 @@ export default function FilterPanel({ filters, onChange, onClose, members = [] }
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div className="absolute right-0 top-full mt-1 bg-white border border-[#E8E8E9] rounded-[8px] shadow-lg z-50 w-[480px] max-h-[80vh] overflow-y-auto">
+      <div className="fixed inset-x-0 bottom-0 sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-full sm:mt-1 bg-white border border-[#E8E8E9] sm:rounded-[8px] rounded-t-2xl shadow-lg z-50 w-full sm:w-[480px] max-h-[85vh] sm:max-h-[80vh] overflow-y-auto">
         <div className="flex items-center justify-between px-5 py-3 border-b border-[#E8E8E9] sticky top-0 bg-white">
           <span className="text-sm font-semibold text-[#151B26]">Filters</span>
           <div className="flex items-center gap-2">

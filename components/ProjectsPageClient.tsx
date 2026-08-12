@@ -227,7 +227,7 @@ export default function ProjectsPageClient({ isAdmin, userEmail, allowedProjectI
       </div>
 
       {selectMode && selected.size > 0 && (
-        <div className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-[#E8E8E9] shadow-[0_-2px_8px_rgba(0,0,0,0.06)] px-4 py-3 sm:px-8">
+        <div className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-[#E8E8E9] shadow-[0_-2px_8px_rgba(0,0,0,0.06)] px-4 py-3 sm:px-8" style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}>
           <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
             <span className="text-sm text-[#151B26]">{selected.size} project{selected.size === 1 ? "" : "s"} selected</span>
             <div className="flex items-center gap-2">

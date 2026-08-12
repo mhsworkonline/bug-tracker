@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Circle, CheckCircle2 } from "lucide-react";
 import type { Task } from "@/lib/data";
 
@@ -28,6 +28,17 @@ function isSameDay(a: Date, b: Date) {
 export default function CalendarView({ tasks, onOpenTask, updateTask }: Props) {
   const today = new Date();
   const [current, setCurrent] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
+  // Day cells are ~1/7th of the viewport wide — on a phone that''s too narrow to show 3
+  // task chips legibly, so cap it lower there.
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    const update = () => setCompact(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  const maxChips = compact ? 2 : 3;
 
   const year = current.getFullYear();
   const month = current.getMonth();
@@ -93,7 +104,7 @@ export default function CalendarView({ tasks, onOpenTask, updateTask }: Props) {
                     {day}
                   </div>
                   <div className="flex flex-col gap-0.5">
-                    {dayTasks.slice(0, 3).map(t => (
+                    {dayTasks.slice(0, maxChips).map(t => (
                       <button
                         key={t.id}
                         onClick={() => onOpenTask(t.id)}
@@ -103,8 +114,8 @@ export default function CalendarView({ tasks, onOpenTask, updateTask }: Props) {
                         {t.name || "Untitled"}
                       </button>
                     ))}
-                    {dayTasks.length > 3 && (
-                      <span className="text-[10px] text-[#6B6F76] px-1">+{dayTasks.length - 3} more</span>
+                    {dayTasks.length > maxChips && (
+                      <span className="text-[10px] text-[#6B6F76] px-1">+{dayTasks.length - maxChips} more</span>
                     )}
                   </div>
                 </div>

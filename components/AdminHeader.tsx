@@ -28,7 +28,7 @@ export default function AdminHeader({ onMenuClick }: Props) {
   };
 
   return (
-    <div className="bg-white border-b border-[#E8E8E9] px-4 sm:px-8 py-3 flex items-center justify-between">
+    <div className="bg-white border-b border-[#E8E8E9] px-4 sm:px-8 py-3 flex items-center justify-between" style={{ paddingTop: "calc(0.75rem + env(safe-area-inset-top))" }}>
       <div className="flex items-center gap-2 min-w-0">
         {onMenuClick && (
           <button onClick={onMenuClick} className="sm:hidden p-1.5 -ml-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded-md flex-shrink-0" title="Menu">

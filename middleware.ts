@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { ADMIN_EMAIL } from "@/lib/constants";
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({ request });
+  const response = NextResponse.next({ request });
 
   const sb = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -33,5 +33,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/).*)"],
+  // icon/apple-icon/manifest.webmanifest must stay public (unauthenticated) — the browser's
+  // install-prompt engine and OS favicon fetches request these without any auth context.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon|apple-icon|manifest.webmanifest|sw.js|api/).*)"],
 };

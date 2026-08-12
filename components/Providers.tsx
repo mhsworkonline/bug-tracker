@@ -3,6 +3,7 @@
 import { ProjectProvider } from "@/lib/store";
 import { AdminSettingsProvider } from "@/lib/adminSettingsContext";
 import GlobalSearch from "@/components/GlobalSearch";
+import InstallPrompt from "@/components/InstallPrompt";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -10,6 +11,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       <ProjectProvider>
         {children}
         <GlobalSearch />
+        <InstallPrompt />
       </ProjectProvider>
     </AdminSettingsProvider>
   );

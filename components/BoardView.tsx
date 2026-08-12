@@ -1,8 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Plus, Circle, CheckCircle2 } from "lucide-react";
 import {
-  DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
+  DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors,
   type DragStartEvent, type DragEndEvent, type DragOverEvent,
 } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -58,8 +58,20 @@ export default function BoardView({ tasks, sections, onOpenTask, addTask, update
   const [draft, setDraft]           = useState("");
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [overId, setOverId]         = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  // Separate mouse/touch sensors (dnd-kit's recommended pairing) instead of one PointerSensor:
+  // touch needs a short press-and-hold delay so a quick swipe pages between columns instead of
+  // starting a drag, while mouse can start dragging immediately on a small move.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+  );
+
+  const scrollToColumn = (id: string | null) => {
+    const el = scrollRef.current?.querySelector<HTMLElement>(`[data-col="${id ?? "unsectioned"}"]`);
+    el?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
+  };
 
   const tasksFor = (sectionId: string | null) =>
     tasks.filter(t => t.section_id === sectionId).sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
@@ -94,14 +106,28 @@ export default function BoardView({ tasks, sections, onOpenTask, addTask, update
 
   return (
     <DndContext sensors={sensors} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd}>
-      <div className="flex-1 overflow-x-auto overflow-y-hidden flex gap-4 px-6 py-4 bg-[#FAFBFC]">
+      {/* Mobile-only column picker — on a phone the board pages one column at a time
+          (snap-scroll below); this lets you jump straight to a section instead of swiping. */}
+      <div className="sm:hidden flex items-center gap-2 overflow-x-auto px-3 py-2 border-b border-[#E8E8E9] bg-white flex-shrink-0">
+        {columns.map(col => (
+          <button
+            key={col.id ?? "unsectioned"}
+            onClick={() => scrollToColumn(col.id)}
+            className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#E8E8E9] text-xs font-medium text-[#151B26] hover:border-[#4573D9] active:bg-[#EEF2FB]"
+          >
+            {col.name || "Untitled"} <span className="text-[#6B6F76]">{tasksFor(col.id).length}</span>
+          </button>
+        ))}
+      </div>
+      <div ref={scrollRef} className="flex-1 overflow-x-auto overflow-y-hidden flex gap-4 px-3 sm:px-6 py-4 bg-[#FAFBFC] snap-x snap-mandatory sm:snap-none scroll-smooth">
         {columns.map(col => {
           const colTasks = tasksFor(col.id);
           const isOver = overId === `col-${col.id}`;
           return (
             <div
               key={col.id ?? "unsectioned"}
-              className={`flex-shrink-0 w-72 flex flex-col rounded-xl border bg-white overflow-hidden transition-colors ${isOver ? "border-[#4573D9] bg-blue-50/30" : "border-[#E8E8E9]"}`}
+              data-col={col.id ?? "unsectioned"}
+              className={`flex-shrink-0 w-[85vw] sm:w-72 snap-start sm:snap-align-none flex flex-col rounded-xl border bg-white overflow-hidden transition-colors ${isOver ? "border-[#4573D9] bg-blue-50/30" : "border-[#E8E8E9]"}`}
             >
               <div className="flex items-center justify-between px-4 py-3 border-b border-[#E8E8E9]">
                 <span className="text-sm font-semibold text-[#151B26] truncate">{col.name || "Untitled section"}</span>

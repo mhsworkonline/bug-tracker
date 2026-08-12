@@ -31,6 +31,9 @@ export default function ProjectDropdownMenu({
 }: Props) {
   const [showExport, setShowExport] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  // Menu is positioned from the trigger button's rect, which can push a fixed 240px-wide
+  // menu off the right edge on a narrow phone screen — clamp it back on screen after mount.
+  const [pos, setPos] = useState(position);
 
   useEffect(() => {
     const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose(); };
@@ -38,11 +41,18 @@ export default function ProjectDropdownMenu({
     return () => document.removeEventListener("mousedown", h);
   }, [onClose]);
 
+  useEffect(() => {
+    const margin = 8;
+    const width = ref.current?.offsetWidth ?? 240;
+    const maxLeft = window.innerWidth - width - margin;
+    setPos({ top: position.top, left: Math.max(margin, Math.min(position.left, maxLeft)) });
+  }, [position]);
+
   return (
     <div
       ref={ref}
       className="fixed z-[100] bg-white border border-[#E8E8E9] rounded-[8px] shadow-lg py-1 w-60"
-      style={{ top: position.top, left: position.left }}
+      style={{ top: pos.top, left: pos.left }}
     >
       {/* Group 1: Settings */}
       <button onClick={() => { onEditSettings(); onClose(); }}
@@ -91,13 +101,16 @@ export default function ProjectDropdownMenu({
         onMouseEnter={() => setShowExport(true)}
         onMouseLeave={() => setShowExport(false)}
       >
-        <button className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left">
+        <button
+          onClick={() => setShowExport(v => !v)}
+          className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left"
+        >
           <Download size={14} className="text-[#6B6F76]" />
           <span className="flex-1">Export or sync</span>
           <ChevronRight size={13} className="text-[#6B6F76]" />
         </button>
         {showExport && (
-          <div className="absolute left-full top-0 bg-white border border-[#E8E8E9] rounded-[8px] shadow-lg py-1 w-52 z-[101]">
+          <div className="absolute left-0 top-full mt-1 sm:left-full sm:top-0 sm:mt-0 bg-white border border-[#E8E8E9] rounded-[8px] shadow-lg py-1 w-52 z-[101]">
             <div className="px-4 py-1.5 text-[10px] font-semibold text-[#6B6F76] uppercase tracking-wider">Export</div>
             <button onClick={() => { onExport("excel"); onClose(); }}
               className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left">

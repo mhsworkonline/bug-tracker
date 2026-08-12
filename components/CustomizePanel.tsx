@@ -20,7 +20,7 @@ export default function CustomizePanel({ onClose }: Props) {
   return (
     <>
       <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose} />
-      <div className="fixed right-0 top-0 h-full w-[380px] bg-white z-50 shadow-xl flex flex-col overflow-hidden">
+      <div className="fixed right-0 top-0 h-full w-full sm:w-[380px] bg-white z-50 shadow-xl flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#E8E8E9] flex-shrink-0">
           <h2 className="text-xl font-bold text-[#151B26]">Customize</h2>

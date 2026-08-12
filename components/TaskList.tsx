@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -570,7 +570,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
   return (
     <div className="flex flex-col h-full bg-[#FAFBFC]">
       {/* Top bar */}
-      <div className="flex items-center justify-between px-3 sm:px-6 py-3 bg-white border-b border-[#E8E8E9] flex-shrink-0">
+      <div className="flex items-center justify-between px-3 sm:px-6 py-3 bg-white border-b border-[#E8E8E9] flex-shrink-0" style={{ paddingTop: "calc(0.75rem + env(safe-area-inset-top))" }}>
         <div className="flex items-center gap-2 min-w-0">
           <div className="w-6 h-6 rounded flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: project.icon_bg }}>
             {project.name[0]}

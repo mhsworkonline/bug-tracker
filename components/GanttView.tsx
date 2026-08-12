@@ -19,10 +19,15 @@ const STATUS_COLOR: Record<string, string> = {
   on_hold:      "#F59E0B",
 };
 
-const CELL_W  = 36; // px per day
 const ROW_H   = 36;
-const LEFT_W  = 220;
 const HEADER_H = 52;
+// Day-cell width and the task-name column shrink on phones — everything else in this
+// view (bar positions, header widths, today-line) is computed from these two values,
+// so making them state-driven is enough to make the whole timeline mobile-sized.
+const CELL_W_DESKTOP = 36;
+const CELL_W_MOBILE  = 20;
+const LEFT_W_DESKTOP = 220;
+const LEFT_W_MOBILE  = 96;
 
 function parseDate(d: string) { return new Date(d + "T00:00:00"); }
 function daysBetween(a: Date, b: Date) { return Math.round((b.getTime() - a.getTime()) / 86400000); }
@@ -32,6 +37,18 @@ function fmt(d: Date) { return d.toLocaleDateString("en-US", { month: "short", d
 export default function GanttView({ tasks, sections, onOpenTask, statuses }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; task: Task } | null>(null);
+  const [compact, setCompact] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    const update = () => setCompact(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  const CELL_W = compact ? CELL_W_MOBILE : CELL_W_DESKTOP;
+  const LEFT_W = compact ? LEFT_W_MOBILE : LEFT_W_DESKTOP;
 
   const today = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d; }, []);
 
@@ -53,7 +70,7 @@ export default function GanttView({ tasks, sections, onOpenTask, statuses }: Pro
     if (!scrollRef.current) return;
     const todayOffset = daysBetween(rangeStart, today) * CELL_W - 200;
     scrollRef.current.scrollLeft = Math.max(0, todayOffset);
-  }, [rangeStart, today]);
+  }, [rangeStart, today, CELL_W]);
 
   // Build month/week header segments
   const monthSegs = useMemo(() => {
@@ -136,7 +153,7 @@ export default function GanttView({ tasks, sections, onOpenTask, statuses }: Pro
           </div>
           {rows.map((row, i) => (
             <div key={i} style={{ height: ROW_H }}
-              className={`flex items-center px-3 border-b border-[#F0F1F3] ${row.type === "section" ? "bg-[#FAFBFC]" : "hover:bg-[#FAFBFC] cursor-pointer"}`}
+              className={`flex items-center px-2 sm:px-3 border-b border-[#F0F1F3] ${row.type === "section" ? "bg-[#FAFBFC]" : "hover:bg-[#FAFBFC] cursor-pointer"}`}
               onClick={() => row.type === "task" && onOpenTask(row.task.id)}
             >
               {row.type === "section" ? (
