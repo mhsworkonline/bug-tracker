@@ -9,6 +9,7 @@ const STATUS_COLORS: Record<string, string> = {
   in_review:    "F5F3FF",
   done:         "F0FDF4",
   blocked:      "FFF1F2",
+  completed:    "ECFDF5",
 };
 
 const STATUS_TEXT: Record<string, string> = {
@@ -18,6 +19,7 @@ const STATUS_TEXT: Record<string, string> = {
   in_review:    "6D28D9",
   done:         "15803D",
   blocked:      "BE123C",
+  completed:    "047857",
 };
 
 const PRIORITY_COLORS: Record<string, string> = {

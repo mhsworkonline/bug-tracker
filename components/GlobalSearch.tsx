@@ -21,7 +21,7 @@ interface Result {
 
 const STATUS_LABELS: Record<string, string> = {
   not_started: "Not started", in_progress: "In progress",
-  ready_for_qa: "Ready for QA", in_review: "In review", done: "Done", blocked: "Blocked",
+  ready_for_qa: "Ready for QA", in_review: "In review", done: "Done", blocked: "Blocked", completed: "Completed",
 };
 
 export default function GlobalSearch() {

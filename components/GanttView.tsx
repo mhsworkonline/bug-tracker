@@ -15,6 +15,7 @@ const STATUS_COLOR: Record<string, string> = {
   not_started: "#9CA3AF",
   in_progress:  "#4573D9",
   done:         "#22C55E",
+  completed:    "#047857",
   blocked:      "#EF4444",
   on_hold:      "#F59E0B",
 };

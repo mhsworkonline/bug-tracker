@@ -4,7 +4,8 @@ export type TaskStatus =
   | "ready_for_qa"
   | "in_review"
   | "done"
-  | "blocked";
+  | "blocked"
+  | "completed";
 
 export type TaskPriority = "show_stopper" | "high" | "medium" | "low";
 
@@ -32,6 +33,7 @@ export const STATUS_LABELS: Record<TaskStatus, string> = {
   in_review:    "In Review",
   done:         "Done",
   blocked:      "Blocked",
+  completed:    "Completed",
 };
 
 export const STATUS_COLORS: Record<TaskStatus, { bg: string; text: string }> = {
@@ -41,6 +43,7 @@ export const STATUS_COLORS: Record<TaskStatus, { bg: string; text: string }> = {
   in_review:    { bg: "#FEF3C7", text: "#B45309" },
   done:         { bg: "#D1FAE5", text: "#065F46" },
   blocked:      { bg: "#FEE2E2", text: "#B91C1C" },
+  completed:    { bg: "#A7F3D0", text: "#047857" },
 };
 
 export const PRIORITY_LABELS: Record<TaskPriority, string> = {

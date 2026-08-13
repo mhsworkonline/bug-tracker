@@ -40,6 +40,7 @@ export const DEFAULT_STATUSES: StatusOption[] = [
   { key: "in_review",    label: "In Review",    bg: "#FEF3C7", text: "#B45309", order: 3 },
   { key: "done",         label: "Done",         bg: "#D1FAE5", text: "#065F46", order: 4 },
   { key: "blocked",      label: "Blocked",      bg: "#FEE2E2", text: "#B91C1C", order: 5 },
+  { key: "completed",    label: "Completed",    bg: "#A7F3D0", text: "#047857", order: 6 },
 ];
 
 export const DEFAULT_PRIORITIES: PriorityOption[] = [

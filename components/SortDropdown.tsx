@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  Calendar, User, Clock, CheckCircle2, ThumbsUp, SortAsc, Tag, Folder,
+  Calendar, User, Clock, CheckCircle2, ThumbsUp, SortAsc, Tag, Folder, Circle,
 } from "lucide-react";
 
 export type SortKey =
@@ -15,6 +15,7 @@ export type SortKey =
   | "likes"
   | "alphabetical"
   | "priority"
+  | "status"
   | "project";
 
 interface Props {
@@ -33,6 +34,7 @@ const OPTIONS: Array<{ key: SortKey; label: string; Icon: React.ElementType }> =
   { key: "likes",          label: "Likes",             Icon: ThumbsUp },
   { key: "alphabetical",   label: "Alphabetical",      Icon: SortAsc },
   { key: "priority",       label: "Priority",          Icon: Tag },
+  { key: "status",         label: "Status",            Icon: Circle },
   { key: "project",        label: "Project",           Icon: Folder },
 ];
 

@@ -13,12 +13,12 @@ interface Props {
 const STATUS_COLORS: Record<string, string> = {
   not_started: "#6B6F76", in_progress: "#1D4ED8",
   ready_for_qa: "#6D28D9", in_review: "#B45309",
-  done: "#065F46", blocked: "#B91C1C",
+  done: "#065F46", blocked: "#B91C1C", completed: "#047857",
 };
 const STATUS_BG: Record<string, string> = {
   not_started: "#F3F4F6", in_progress: "#DBEAFE",
   ready_for_qa: "#EDE9FE", in_review: "#FEF3C7",
-  done: "#D1FAE5", blocked: "#FEE2E2",
+  done: "#D1FAE5", blocked: "#FEE2E2", completed: "#A7F3D0",
 };
 
 function isSameDay(a: Date, b: Date) {

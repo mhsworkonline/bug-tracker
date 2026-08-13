@@ -29,6 +29,7 @@ const STATUS_COLORS: Record<string, string> = {
   not_started: "#B0B3B8",
   blocked:     "#EF4444",
   review:      "#F59E0B",
+  completed:   "#047857",
 };
 
 function computeStats({ projects, tasks, logs }: AdminDashboardRaw): StatsData {

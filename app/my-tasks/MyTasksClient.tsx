@@ -25,6 +25,7 @@ const STATUS_COLORS: Record<string, string> = {
   in_review:    "#B45309",
   done:         "#065F46",
   blocked:      "#B91C1C",
+  completed:    "#047857",
 };
 
 const STATUS_BG: Record<string, string> = {
@@ -34,6 +35,7 @@ const STATUS_BG: Record<string, string> = {
   in_review:    "#FEF3C7",
   done:         "#D1FAE5",
   blocked:      "#FEE2E2",
+  completed:    "#A7F3D0",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -43,6 +45,7 @@ const STATUS_LABELS: Record<string, string> = {
   in_review:    "In Review",
   done:         "Done",
   blocked:      "Blocked",
+  completed:    "Completed",
 };
 
 const PRIORITY_DOT: Record<string, string> = {
@@ -98,7 +101,7 @@ export default function MyTasksClient({ userEmail, initialTasks }: { userEmail: 
 
   function groupTasks(): { label: string; tasks: MyTask[] }[] {
     if (groupBy === "status") {
-      const order = ["in_progress", "not_started", "in_review", "ready_for_qa", "blocked", "done"];
+      const order = ["in_progress", "not_started", "in_review", "ready_for_qa", "blocked", "done", "completed"];
       const groups: Record<string, MyTask[]> = {};
       for (const t of visible) {
         const k = t.status ?? "not_started";

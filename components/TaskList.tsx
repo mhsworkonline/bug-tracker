@@ -163,7 +163,7 @@ export default function TaskList({ projectId, userEmail, initialData }: { projec
     return () => { document.title = "Bug Tracker"; };
   }, [project?.name]);
 
-  const { lockPriorities, taskTypes, membersCanManageMembers, membersCanExportJira, membersCanExportExcel } = useAdminSettings();
+  const { statuses, lockPriorities, taskTypes, membersCanManageMembers, membersCanExportJira, membersCanExportExcel } = useAdminSettings();
   const { updateProject } = useStore();
 
   const [userRole, setUserRole]               = useState<"lead" | "member">("member");
@@ -244,6 +244,18 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     } catch { return new Set(); }
   });
 
+  // Tasks marked with the "Completed" status are hidden from every view (List/Board/
+  // Calendar/Gantt/Dashboard) by default — this toggle reveals them. Persisted per-project
+  // so it survives a refresh, same pattern as collapsed sections.
+  const [showCompletedTasks, setShowCompletedTasks] = useState(() => {
+    try { return localStorage.getItem(`bt_showcompleted_${projectId}`) === "1"; } catch { return false; }
+  });
+  const toggleShowCompleted = () => setShowCompletedTasks(prev => {
+    const next = !prev;
+    try { localStorage.setItem(`bt_showcompleted_${projectId}`, next ? "1" : "0"); } catch {}
+    return next;
+  });
+
   const toggleCollapse = (id: string) => setCollapsedSections(prev => {
     const next = new Set(prev);
     next.has(id) ? next.delete(id) : next.add(id);
@@ -297,7 +309,10 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
 
   const visibleCols = columnConfigs.filter(c => c.visible).map(c => c.column_key as ColumnKey);
 
-  const filteredTasks = useMemo(() => {
+  // filteredTasksBase applies search/filter/sort but not the completed-status hiding, so
+  // the export dialog's "include completed" checkbox can decide independently of whatever
+  // the on-screen "Show completed" toggle is currently set to.
+  const filteredTasksBase = useMemo(() => {
     let r = [...tasks];
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -314,6 +329,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     if (activeFilters.assignees.length)  r = r.filter(t => activeFilters.assignees.includes(t.assignee ?? ""));
     if (sortKey !== "none") r = [...r].sort((a, b) => {
       const rank: Record<string, number> = { show_stopper: 0, high: 1, medium: 2, low: 3 };
+      const statusOrder = (key: string | null | undefined) => statuses.find(s => s.key === key)?.order ?? 99;
       let v = 0;
       switch (sortKey) {
         case "alphabetical":   v = a.name.localeCompare(b.name); break;
@@ -323,13 +339,22 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
         case "lastModifiedAt": v = a.updated_at.localeCompare(b.updated_at); break;
         case "completedAt":    v = (a.completed_at ?? "").localeCompare(b.completed_at ?? ""); break;
         case "priority":       v = (rank[a.priority ?? ""] ?? 4) - (rank[b.priority ?? ""] ?? 4); break;
+        case "status":         v = statusOrder(a.status) - statusOrder(b.status); break;
         default: v = 0;
       }
       return sortDir === "asc" ? v : -v;
     });
     else r = [...r].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
     return r;
-  }, [tasks, activeFilters, sortKey, sortDir, searchQuery]);
+  }, [tasks, activeFilters, sortKey, sortDir, searchQuery, statuses]);
+
+  const completedHiddenCount = useMemo(() =>
+    filteredTasksBase.filter(t => t.status === "completed").length,
+    [filteredTasksBase]);
+
+  const filteredTasks = useMemo(() =>
+    showCompletedTasks ? filteredTasksBase : filteredTasksBase.filter(t => t.status !== "completed"),
+    [filteredTasksBase, showCompletedTasks]);
 
   const sortedSections = useMemo(() =>
     [...sections].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })),
@@ -527,17 +552,21 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     setJiraConfirm({ title, body: describe(resolved.name, resolved.key), action });
   };
 
-  const handleExport = async (type: "csv"|"excel"|"excel-delta"|"pdf"|"json") => {
+  const handleExport = async (type: "csv"|"excel"|"excel-delta"|"pdf"|"json", includeCompleted = false) => {
     if (!project) return;
-    if (type === "csv")   exportToCSV(project, sections, filteredTasks, taskTypes);
-    if (type === "pdf")   await exportToPDF(project, sections, filteredTasks, taskTypes);
-    if (type === "json")  exportToJSON(project, sections, filteredTasks);
+    // Independent of the on-screen "Show completed" toggle — starts from the
+    // search/filter/sort-applied list and only adds/drops completed-status tasks
+    // based on the export dialog's own checkbox.
+    const exportTasks = includeCompleted ? filteredTasksBase : filteredTasksBase.filter(t => t.status !== "completed");
+    if (type === "csv")   exportToCSV(project, sections, exportTasks, taskTypes);
+    if (type === "pdf")   await exportToPDF(project, sections, exportTasks, taskTypes);
+    if (type === "json")  exportToJSON(project, sections, exportTasks);
 
     if (type === "excel" || type === "excel-delta") {
-      let excelTasks = filteredTasks;
+      let excelTasks = exportTasks;
       if (type === "excel-delta" && project.last_excel_export_at) {
         const since = new Date(project.last_excel_export_at);
-        excelTasks = filteredTasks.filter(t => new Date(t.updated_at) > since);
+        excelTasks = exportTasks.filter(t => new Date(t.updated_at) > since);
       }
       if (!excelTasks.length) { alert("No new or changed tasks since the last report."); return; }
       await exportToExcel(project, sections, excelTasks, taskTypes);
@@ -718,6 +747,15 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
           <span className="text-xs text-[#6B6F76] px-1 whitespace-nowrap" title="Total tasks">
             {filteredTasks.length}{filteredTasks.length !== tasks.length ? ` of ${tasks.length}` : ""} task{tasks.length !== 1 ? "s" : ""}
           </span>
+          <label className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-[#6B6F76] cursor-pointer select-none whitespace-nowrap" title="Completed tasks are hidden from every view by default">
+            <input
+              type="checkbox"
+              checked={showCompletedTasks}
+              onChange={toggleShowCompleted}
+              className="w-3.5 h-3.5 accent-[#4573D9] cursor-pointer"
+            />
+            Show completed{!showCompletedTasks && completedHiddenCount > 0 ? ` (${completedHiddenCount})` : ""}
+          </label>
           <div className="relative">
             <button onClick={() => { setShowFilter(v => !v); setShowSort(false); }} className={`flex items-center gap-1 px-2.5 py-1.5 text-sm rounded transition-colors ${filterActive ? "text-[#4573D9] bg-[#EEF2FB]" : "text-[#6B6F76] hover:bg-[#F5F5F5]"}`}>
               <Filter size={14} /> Filter{filterActive ? " •" : ""}
@@ -992,7 +1030,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
         <div className="flex items-center px-3 sm:px-6 py-2 border-b border-[#E8E8E9] sticky top-0 bg-[#FAFBFC] z-10">
           <div className="w-5 mr-2 flex-shrink-0" />
           <SortHeader label="Name"          sk="alphabetical"   sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="flex-1 border-r border-[#E8E8E9] pr-3" />
-          {visibleCols.includes("status")           && <div className="hidden sm:block w-32 text-xs font-medium text-[#6B6F76] border-r border-[#E8E8E9] pl-3">Status</div>}
+          {visibleCols.includes("status")           && <SortHeader label="Status"      sk="status"        sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="hidden sm:block w-32 border-r border-[#E8E8E9] pl-3" />}
           {visibleCols.includes("assignee")         && <SortHeader label="Assignee"    sk="assignee"      sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="hidden sm:block w-28 border-r border-[#E8E8E9] pl-3" />}
           {visibleCols.includes("due_date")         && <SortHeader label="Due date"    sk="dueDate"       sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="hidden sm:block w-28 border-r border-[#E8E8E9] pl-3" />}
           {visibleCols.includes("priority")         && <SortHeader label="Priority"    sk="priority"      sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="hidden sm:block w-32 border-r border-[#E8E8E9] pl-3" />}
