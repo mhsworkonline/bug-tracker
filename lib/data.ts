@@ -36,6 +36,14 @@ export const STATUS_LABELS: Record<TaskStatus, string> = {
   completed:    "Completed",
 };
 
+// The one status that represents a task being finished. Changing a task's
+// status to this (from anywhere — List, Board, TaskDetailPanel) should behave
+// like "Mark complete": set `completed`/`completed_at` so the strikethrough
+// styling shows consistently everywhere, not just via the dedicated button.
+// "Done" is a plain intermediate status like any other — only "Completed" is
+// the terminal one (it's also the status TaskList hides by default).
+export const COMPLETED_STATUSES: TaskStatus[] = ["completed"];
+
 export const STATUS_COLORS: Record<TaskStatus, { bg: string; text: string }> = {
   not_started:  { bg: "#F3F4F6", text: "#6B6F76" },
   in_progress:  { bg: "#DBEAFE", text: "#1D4ED8" },
@@ -113,6 +121,23 @@ export interface Task {
   created_at: string;
   updated_at: string;
   BT_attachments?: Attachment[];
+}
+
+// Shared by every place a task's status can be edited (useProject's updateTask,
+// the standalone task-detail page's own copy, etc.) so that changing status to
+// Done/Completed — from the List page, Board, or TaskDetailPanel's status field —
+// always flips `completed`/`completed_at` the same way the dedicated "Mark
+// complete" button does, and reverses it when the status moves away again.
+// No-op if the caller already set `completed` explicitly.
+export function syncCompletionWithStatus<T extends { status?: string; completed?: boolean; completed_at?: string | null }>(
+  task: Pick<Task, "status"> | null | undefined,
+  updates: T
+): T {
+  if (!task || updates.status === undefined || updates.status === task.status || updates.completed !== undefined) {
+    return updates;
+  }
+  const nowComplete = COMPLETED_STATUSES.includes(updates.status as TaskStatus);
+  return { ...updates, completed: nowComplete, completed_at: nowComplete ? new Date().toISOString() : null };
 }
 
 export interface Section {

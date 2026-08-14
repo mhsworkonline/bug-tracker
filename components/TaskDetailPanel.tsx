@@ -217,9 +217,10 @@ export default function TaskDetailPanel({
 
   const toggleSubtask = async (sub: typeof subtasks[0]) => {
     const completed = !sub.completed;
-    setSubtasks(prev => prev.map(s => s.id === sub.id ? { ...s, completed, status: completed ? "done" : "not_started" } : s));
+    const status = completed ? "completed" : "not_started";
+    setSubtasks(prev => prev.map(s => s.id === sub.id ? { ...s, completed, status } : s));
     const { supabase } = await import("@/lib/supabase");
-    await supabase.from("BT_tasks").update({ completed, status: completed ? "done" : "not_started" }).eq("id", sub.id);
+    await supabase.from("BT_tasks").update({ completed, status, completed_at: completed ? new Date().toISOString() : null }).eq("id", sub.id);
   };
 
   const submitComment = async () => {

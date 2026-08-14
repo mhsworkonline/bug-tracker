@@ -8,7 +8,7 @@ import type {
   Project, Section, Task, Attachment,
   ColumnConfig, ColumnKey, TaskStatus, TaskPriority, DEFAULT_COLUMNS,
 } from "@/lib/data";
-import { DEFAULT_COLUMNS as COLS } from "@/lib/data";
+import { DEFAULT_COLUMNS as COLS, syncCompletionWithStatus } from "@/lib/data";
 
 export interface ProjectData {
   project: Project | null;
@@ -208,7 +208,7 @@ export function useProject(projectId: string, userEmail?: string, initialData?: 
   ) => {
     const task = tasks.find(t => t.id === taskId);
     const now = new Date().toISOString();
-    const payload = { ...updates, updated_at: now };
+    const payload = { ...syncCompletionWithStatus(task, updates), updated_at: now };
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...payload } : t));
     await supabase.from("BT_tasks").update(payload).eq("id", taskId);
     if (task) {
@@ -242,16 +242,12 @@ export function useProject(projectId: string, userEmail?: string, initialData?: 
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
     const completed = !task.completed;
-    const now = new Date().toISOString();
-    const updates = {
+    await updateTask(taskId, {
       completed,
-      completed_at: completed ? now : null,
-      status: completed ? "done" as TaskStatus : "not_started" as TaskStatus,
-      updated_at: now,
-    };
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updates } : t));
-    await supabase.from("BT_tasks").update(updates).eq("id", taskId);
-  }, [tasks]);
+      completed_at: completed ? new Date().toISOString() : null,
+      status: completed ? "completed" as TaskStatus : "not_started" as TaskStatus,
+    });
+  }, [tasks, updateTask]);
 
   const deleteTask = useCallback(async (taskId: string) => {
     const task = tasks.find(t => t.id === taskId);

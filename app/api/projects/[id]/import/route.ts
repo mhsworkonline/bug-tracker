@@ -88,25 +88,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { data: existingTasks } = await client.from("BT_tasks").select("position").eq("project_id", projectId).order("position", { ascending: false }).limit(1);
   let pos = (existingTasks?.[0]?.position ?? -1) + 1;
 
-  const STATUS_MAP: Record<string, string> = { "Not Started": "not_started", "In Progress": "in_progress", "Ready for QA": "ready_for_qa", "In Review": "in_review", "Done": "done", "Blocked": "blocked" };
+  const STATUS_MAP: Record<string, string> = { "Not Started": "not_started", "In Progress": "in_progress", "Ready for QA": "ready_for_qa", "In Review": "in_review", "Done": "done", "Blocked": "blocked", "Completed": "completed" };
   const PRIORITY_MAP: Record<string, string> = { "Show Stopper": "show_stopper", "High": "high", "Medium": "medium", "Low": "low" };
 
   let imported = 0;
   for (const row of rows) {
     if (!row.name?.trim()) continue;
     const section_id = await getOrCreateSection(row.section ?? "");
+    const status = STATUS_MAP[row.status ?? ""] ?? "not_started";
+    // "Completed" is this app's terminal status (see COMPLETED_STATUSES in lib/data.ts) —
+    // an imported row already marked Completed should land pre-struck-through, same as
+    // one completed manually, instead of silently importing as incomplete.
+    const completed = status === "completed";
     await client.from("BT_tasks").insert({
       project_id: projectId,
       section_id,
       name: row.name.trim(),
-      status: STATUS_MAP[row.status ?? ""] ?? "not_started",
+      status,
       priority: PRIORITY_MAP[row.priority ?? ""] ?? "high",
       task_type: row.task_type?.toLowerCase() ?? "bug",
       assignee: row.assignee || null,
       due_date: row.due_date || null,
       description: row.description || null,
       position: pos++,
-      completed: false,
+      completed,
+      completed_at: completed ? new Date().toISOString() : null,
     });
     imported++;
   }

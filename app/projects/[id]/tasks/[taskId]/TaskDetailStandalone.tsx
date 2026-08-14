@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { useAdminSettings } from "@/lib/adminSettingsContext";
 import TaskDetailPanel from "@/components/TaskDetailPanel";
 import type { Task, Section, Project } from "@/lib/data";
+import { syncCompletionWithStatus } from "@/lib/data";
 import type { ProjectData } from "@/hooks/useProject";
 
 interface Props { projectId: string; taskId: string; userEmail?: string; }
@@ -35,9 +36,11 @@ export default function TaskDetailStandalone({ projectId, taskId, userEmail }: P
   }, [projectId, taskId]);
 
   const updateTask: ProjectData["updateTask"] = async (id, updates) => {
-    setTask(prev => prev ? { ...prev, ...updates } : prev);
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
-    await supabase.from("BT_tasks").update({ ...updates, updated_at: new Date().toISOString() }).eq("id", id);
+    const current = task?.id === id ? task : tasks.find(t => t.id === id);
+    const synced = syncCompletionWithStatus(current, updates);
+    setTask(prev => prev && prev.id === id ? { ...prev, ...synced } : prev);
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, ...synced } : t));
+    await supabase.from("BT_tasks").update({ ...synced, updated_at: new Date().toISOString() }).eq("id", id);
   };
 
   const updateTaskLocal: ProjectData["updateTaskLocal"] = (id, updates) => {
@@ -49,7 +52,7 @@ export default function TaskDetailStandalone({ projectId, taskId, userEmail }: P
     const t = tasks.find(x => x.id === id);
     if (!t) return;
     const completed = !t.completed;
-    const updates = { completed, completed_at: completed ? new Date().toISOString() : null, status: completed ? "done" : "not_started", updated_at: new Date().toISOString() };
+    const updates = { completed, completed_at: completed ? new Date().toISOString() : null, status: completed ? "completed" : "not_started", updated_at: new Date().toISOString() };
     setTask(prev => prev?.id === id ? { ...prev, ...updates } : prev);
     setTasks(prev => prev.map(x => x.id === id ? { ...x, ...updates } : x));
     await supabase.from("BT_tasks").update(updates).eq("id", id);

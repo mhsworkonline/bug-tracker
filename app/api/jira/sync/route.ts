@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { COMPLETED_STATUSES, type TaskStatus } from "@/lib/data";
 
 function sb() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -17,10 +18,15 @@ const STATUS_MAP: Record<string, string> = {
   "in review":    "in_review",
   "review":       "in_review",
   "blocked":      "blocked",
-  "done":         "done",
-  "closed":       "done",
-  "resolved":     "done",
-  "won't do":     "done",
+  // "Completed" is this app's one terminal status — the only one that carries the
+  // completed/strikethrough treatment (see COMPLETED_STATUSES in lib/data.ts) and
+  // gets hidden from views by default. Every Jira "finished" state maps to it
+  // directly, so a synced issue lands in the same state a manual "Mark complete"
+  // would produce, instead of the separate "done" status.
+  "done":         "completed",
+  "closed":       "completed",
+  "resolved":     "completed",
+  "won't do":     "completed",
 };
 
 // Values must match BT_tasks.priority values (see DEFAULT_PRIORITIES in lib/adminSettings.ts).
@@ -106,7 +112,14 @@ export async function POST(req: NextRequest) {
       if (newName)     updates.name     = newName;
       if (newAssignee !== undefined) updates.assignee = newAssignee;
       if (newDue      !== undefined) updates.due_date = newDue;
-      if (updates.status === "done") { updates.completed = true; updates.completed_at = new Date().toISOString(); }
+      // Keep `completed` in sync with status here too, the same rule useProject's
+      // updateTask applies client-side — one definition of "complete" (COMPLETED_STATUSES),
+      // not a Jira-specific copy of it.
+      if (updates.status !== undefined && updates.status !== task.status) {
+        const nowComplete = COMPLETED_STATUSES.includes(updates.status as TaskStatus);
+        updates.completed = nowComplete;
+        updates.completed_at = nowComplete ? new Date().toISOString() : null;
+      }
 
       const hasChanges =
         (updates.status   !== undefined && updates.status   !== task.status)   ||

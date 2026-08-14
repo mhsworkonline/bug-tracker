@@ -24,13 +24,17 @@ const TYPE_PREFERENCES: Record<string, string[]> = {
   task:       ["Task"],
 };
 
-// Only these three have a Jira counterpart. ready_for_qa / in_review / blocked exist only in
+// Only these have a Jira counterpart. ready_for_qa / in_review / blocked exist only in
 // this app, so we deliberately leave the Jira status alone for them — forcing them to
 // "In Progress" would come back on the next sync and destroy the local distinction.
+// "completed" is this app's terminal status (see COMPLETED_STATUSES in lib/data.ts) — it
+// maps to Jira "Done" the same as the plain "done" status, so marking a task complete here
+// pushes the same Jira state a manual "Done" transition would.
 const STATUS_TO_JIRA: Record<string, string> = {
   not_started: "To Do",
   in_progress: "In Progress",
   done:        "Done",
+  completed:   "Done",
 };
 
 // Jira rejects a summary longer than 255 chars, and rejects newlines in it.

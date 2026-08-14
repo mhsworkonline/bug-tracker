@@ -139,8 +139,8 @@ export default function MyTasksClient({ userEmail, initialTasks }: { userEmail: 
 
   const toggleComplete = async (task: MyTask) => {
     const completed = !task.completed;
-    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, completed, status: completed ? "done" : "not_started" } : t));
-    await supabase.from("BT_tasks").update({ completed, status: completed ? "done" : "not_started", completed_at: completed ? new Date().toISOString() : null }).eq("id", task.id);
+    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, completed, status: completed ? "completed" : "not_started" } : t));
+    await supabase.from("BT_tasks").update({ completed, status: completed ? "completed" : "not_started", completed_at: completed ? new Date().toISOString() : null }).eq("id", task.id);
   };
 
   return (
