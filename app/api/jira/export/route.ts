@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { COMPLETED_STATUSES } from "@/lib/data";
 
 function sb() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -77,7 +78,9 @@ type Row = {
 export async function POST(req: NextRequest) {
   // `force` re-sends everything regardless of jira_last_pushed_at (admin repair tool).
   // `since` makes force terminate: each pushed task is stamped with a later time.
-  const { task_ids, project_id, force, since } = await req.json();
+  // `skip_completed` leaves this app's terminal status out of Jira entirely — neither
+  // created as a new issue nor pushed as an update to one already linked.
+  const { task_ids, project_id, force, since, skip_completed } = await req.json();
 
   const client = sb();
   const { data: setting } = await client.from("BT_settings").select("value").eq("key", "jira_config").single();
@@ -116,6 +119,7 @@ export async function POST(req: NextRequest) {
   if (project_id)            query = query.eq("project_id", project_id).is("parent_task_id", null);
   else if (task_ids?.length) query = query.in("id", task_ids);
   else return NextResponse.json({ error: "No tasks selected." }, { status: 400 });
+  if (skip_completed)        query = query.not("status", "in", `(${COMPLETED_STATUSES.join(",")})`);
 
   const { data: allTasks } = await query.order("created_at");
   if (!allTasks?.length) return NextResponse.json({ results: [], pendingTotal: 0, remaining: 0, skipped: 0 });

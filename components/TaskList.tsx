@@ -190,8 +190,13 @@ export default function TaskList({ projectId, userEmail, initialData }: { projec
   const [showJiraMenu, setShowJiraMenu]       = useState(false);
   const [jiraWorking, setJiraWorking]         = useState(false);
   const [jiraLoadingMsg, setJiraLoadingMsg]   = useState<string | null>(null);
-  const [jiraConfirm, setJiraConfirm]         = useState<{ title: string; body: string; action: () => void } | null>(null);
+  const [jiraConfirm, setJiraConfirm]         = useState<{ title: string; body: string; action: () => void; showSkipCompleted?: boolean } | null>(null);
   const [jiraKeyInput, setJiraKeyInput]       = useState<string | null>(null);
+  // Default true: completed tasks stay out of Jira unless the user unchecks this in the
+  // confirm modal. A ref (not just the state) so the action closure — built before the
+  // checkbox can be touched — reads whatever the checkbox says at the moment Confirm is clicked.
+  const [jiraSkipCompleted, setJiraSkipCompleted] = useState(true);
+  const jiraSkipCompletedRef = useRef(true);
   const [showStatusMenu, setShowStatusMenu]   = useState(false);
   const [isFavorite, setIsFavorite]           = useState(project?.is_favorite ?? false);
   const [projectStatus, setProjectStatus]     = useState<string>(project?.status ?? "on_track");
@@ -549,7 +554,8 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
   const confirmJiraProject = async (
     title: string,
     describe: (jiraName: string, jiraKey: string) => string,
-    action: () => void
+    action: () => void,
+    showSkipCompleted = false,
   ) => {
     setJiraWorking(true);
     const res = await fetch(`/api/jira/resolve-project?project_id=${projectId}`);
@@ -561,7 +567,9 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
       if (resolved.needsKey) { setShowJiraMenu(true); setJiraKeyInput(project?.jira_project_key ?? ""); }
       return;
     }
-    setJiraConfirm({ title, body: describe(resolved.name, resolved.key), action });
+    setJiraSkipCompleted(true);
+    jiraSkipCompletedRef.current = true;
+    setJiraConfirm({ title, body: describe(resolved.name, resolved.key), action, showSkipCompleted });
   };
 
   const handleExport = async (type: "csv"|"excel"|"excel-delta"|"pdf"|"json", includeCompleted = false) => {
@@ -858,7 +866,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                         try {
                           const { rows, skipped, stalled } = await runJiraBatches<JiraExportResult>(
                             "/api/jira/export",
-                            { project_id: projectId },
+                            { project_id: projectId, skip_completed: jiraSkipCompletedRef.current },
                             (done, total) => `Exporting to Jira… ${done} of ${total}`,
                             batch => batch.filter(r => r.created || r.updated || r.unlinked).length,
                           );
@@ -881,7 +889,8 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                         } catch (e) {
                           alert(e instanceof Error ? e.message : "Export failed.");
                         } finally { setJiraLoadingMsg(null); }
-                      }
+                      },
+                      true
                     );
                   }}
                   className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left"
@@ -980,7 +989,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                   try {
                     const { rows, stalled } = await runJiraBatches<JiraExportResult>(
                       "/api/jira/export",
-                      { task_ids: ids },
+                      { task_ids: ids, skip_completed: jiraSkipCompletedRef.current },
                       (done, total) => `Exporting selected tasks to Jira… ${done} of ${total}`,
                       batch => batch.filter(r => r.created).length,
                     );
@@ -993,7 +1002,8 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                   } catch (e) {
                     alert(e instanceof Error ? e.message : "Export failed.");
                   } finally { setJiraLoadingMsg(null); }
-                }
+                },
+                true
               );
             }}
             className="flex items-center gap-1.5 text-white/80 hover:text-white"
@@ -1506,7 +1516,18 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M11.571 11.429L6.857 6.714A6 6 0 0112 2a6 6 0 015.143 9.143L12 16.286l-5.143-4.857z" fill="#2684FF"/><path d="M12.429 12.571l4.714 4.715A6 6 0 0112 22a6 6 0 01-5.143-9.143L12 7.714l5.143 4.857z" fill="#2684FF" opacity=".5"/></svg>
               <h2 className="text-base font-semibold text-[#151B26]">{jiraConfirm.title}</h2>
             </div>
-            <p className="text-sm text-[#6B6F76] leading-relaxed mb-6">{jiraConfirm.body}</p>
+            <p className="text-sm text-[#6B6F76] leading-relaxed mb-4">{jiraConfirm.body}</p>
+            {jiraConfirm.showSkipCompleted && (
+              <label className="flex items-center gap-2 mb-6 text-sm text-[#151B26] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={jiraSkipCompleted}
+                  onChange={e => { setJiraSkipCompleted(e.target.checked); jiraSkipCompletedRef.current = e.target.checked; }}
+                  className="w-4 h-4"
+                />
+                Skip completed tasks
+              </label>
+            )}
             <div className="flex justify-end gap-2">
               <button onClick={() => setJiraConfirm(null)} className="px-4 py-2 text-sm text-[#6B6F76] border border-[#E8E8E9] rounded-lg hover:bg-[#F5F5F5]">Cancel</button>
               <button
