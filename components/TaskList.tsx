@@ -323,6 +323,18 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     if (activeFilters.justMyTasks)  r = r.filter(t => t.assignee === userEmail);
     if (activeFilters.dueThisWeek) { const { start, end } = getWeekRange(0); r = r.filter(t => { if (!t.due_date) return false; const d = new Date(t.due_date); return d >= start && d <= end; }); }
     if (activeFilters.dueNextWeek) { const { start, end } = getWeekRange(1); r = r.filter(t => { if (!t.due_date) return false; const d = new Date(t.due_date); return d >= start && d <= end; }); }
+    if (activeFilters.createdFrom || activeFilters.createdTo) {
+      const from = activeFilters.createdFrom ? new Date(activeFilters.createdFrom) : null;
+      const to   = activeFilters.createdTo   ? new Date(activeFilters.createdTo)   : null;
+      if (to) to.setHours(23, 59, 59, 999);
+      r = r.filter(t => {
+        if (!t.created_at) return false;
+        const d = new Date(t.created_at);
+        if (from && d < from) return false;
+        if (to && d > to) return false;
+        return true;
+      });
+    }
     if (activeFilters.statuses.length)   r = r.filter(t => activeFilters.statuses.includes(t.status ?? ""));
     if (activeFilters.priorities.length) r = r.filter(t => activeFilters.priorities.includes(t.priority ?? ""));
     if (activeFilters.taskTypes.length)  r = r.filter(t => activeFilters.taskTypes.includes(t.task_type ?? ""));
@@ -583,7 +595,8 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
   const filterActive = activeFilters.incomplete || activeFilters.completed || activeFilters.justMyTasks ||
     activeFilters.dueThisWeek || activeFilters.dueNextWeek ||
     activeFilters.statuses.length > 0 || activeFilters.priorities.length > 0 ||
-    activeFilters.taskTypes.length > 0 || activeFilters.assignees.length > 0;
+    activeFilters.taskTypes.length > 0 || activeFilters.assignees.length > 0 ||
+    !!activeFilters.createdFrom || !!activeFilters.createdTo;
 
   if (loading) return (
     <div className="flex items-center justify-center h-full gap-2 text-[#6B6F76] text-sm">

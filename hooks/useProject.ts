@@ -180,16 +180,18 @@ export function useProject(projectId: string, userEmail?: string, initialData?: 
     const src = tasks.find(t => t.id === taskId);
     if (!src) return null;
     const position = tasks.filter(t => t.section_id === src.section_id).length;
+    // Carry over every task field except identity/timestamps and Jira linkage
+    // (a copy shouldn't point at the original's external Jira issue).
+    const {
+      id: _id, created_at: _c, updated_at: _u, name: _n, position: _p, BT_attachments: _a,
+      jira_issue_key: _ji, jira_has_updates: _jh, jira_last_pushed_at: _jl,
+      jira_remote_updated_at: _jr, jira_pushed_status: _jp,
+      ...rest
+    } = src;
     const payload = {
-      section_id:  src.section_id,
-      project_id:  projectId,
-      name:        `${src.name} (copy)`,
-      status:      src.status,
-      priority:    src.priority ?? null,
-      assignee:    src.assignee ?? null,
-      due_date:    src.due_date ?? null,
-      description: src.description ?? null,
-      completed:   false,
+      ...rest,
+      project_id: projectId,
+      name: `${src.name} (copy)`,
       position,
     };
     const { data, error } = await supabase
@@ -198,8 +200,20 @@ export function useProject(projectId: string, userEmail?: string, initialData?: 
       .select("*, BT_attachments(*)")
       .single();
     if (error || !data) return null;
-    setTasks(prev => [...prev, data]);
-    return data;
+    let newTask: Task = data;
+    if (src.BT_attachments?.length) {
+      const attachmentCopies = src.BT_attachments.map(({ id: _aid, task_id: _tid, uploaded_at: _ua, ...att }) => ({
+        ...att,
+        task_id: newTask.id,
+      }));
+      const { data: newAttachments } = await supabase
+        .from("BT_attachments")
+        .insert(attachmentCopies)
+        .select();
+      if (newAttachments) newTask = { ...newTask, BT_attachments: newAttachments };
+    }
+    setTasks(prev => [...prev, newTask]);
+    return newTask;
   }, [projectId, tasks]);
 
   const updateTask = useCallback(async (

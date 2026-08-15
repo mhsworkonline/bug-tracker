@@ -12,12 +12,15 @@ export interface ActiveFilters {
   priorities: string[];
   taskTypes: string[];
   assignees: string[];
+  createdFrom: string | null;
+  createdTo: string | null;
 }
 
 export const DEFAULT_FILTERS: ActiveFilters = {
   incomplete: false, completed: false, justMyTasks: false,
   dueThisWeek: false, dueNextWeek: false,
   statuses: [], priorities: [], taskTypes: [], assignees: [],
+  createdFrom: null, createdTo: null,
 };
 
 interface Props {
@@ -57,7 +60,8 @@ export default function FilterPanel({ filters, onChange, onClose, members = [] }
   const hasActive = filters.incomplete || filters.completed || filters.justMyTasks ||
     filters.dueThisWeek || filters.dueNextWeek ||
     filters.statuses.length > 0 || filters.priorities.length > 0 ||
-    filters.taskTypes.length > 0 || filters.assignees.length > 0;
+    filters.taskTypes.length > 0 || filters.assignees.length > 0 ||
+    !!filters.createdFrom || !!filters.createdTo;
 
   const set = (patch: Partial<ActiveFilters>) => onChange({ ...filters, ...patch });
 
@@ -84,6 +88,33 @@ export default function FilterPanel({ filters, onChange, onClose, members = [] }
                   <Icon size={13} />{label}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Created date range */}
+          <div>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-[#6B6F76] uppercase tracking-wide">Created date range</p>
+              {(filters.createdFrom || filters.createdTo) && (
+                <button onClick={() => set({ createdFrom: null, createdTo: null })} className="text-xs text-[#4573D9]">Clear</button>
+              )}
+            </div>
+            <div className="flex items-center gap-2 mt-2">
+              <input
+                type="date"
+                value={filters.createdFrom ?? ""}
+                onChange={e => set({ createdFrom: e.target.value || null })}
+                max={filters.createdTo ?? undefined}
+                className="flex-1 min-w-0 px-2.5 py-1.5 text-sm border border-[#E8E8E9] rounded-[6px] text-[#151B26] focus:outline-none focus:border-[#4573D9]"
+              />
+              <span className="text-xs text-[#6B6F76] shrink-0">to</span>
+              <input
+                type="date"
+                value={filters.createdTo ?? ""}
+                onChange={e => set({ createdTo: e.target.value || null })}
+                min={filters.createdFrom ?? undefined}
+                className="flex-1 min-w-0 px-2.5 py-1.5 text-sm border border-[#E8E8E9] rounded-[6px] text-[#151B26] focus:outline-none focus:border-[#4573D9]"
+              />
             </div>
           </div>
 
