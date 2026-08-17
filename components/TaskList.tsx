@@ -1145,7 +1145,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
         {/* Sections + tasks */}
         {sortedSections.map(section => {
           const sectionTasks = filteredTasks.filter(t => t.section_id === section.id);
-          const isSearchActive = searchQuery.trim() !== "" || filteredTasks.length !== tasks.length;
+          const isSearchActive = searchQuery.trim() !== "" || filteredTasksBase.length !== tasks.length;
           const collapsed = isSearchActive ? false : collapsedSections.has(section.id);
           if (isSearchActive && sectionTasks.length === 0) return null;
           return (
