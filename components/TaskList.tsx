@@ -18,7 +18,7 @@ import StatusBadge from "@/components/StatusBadge";
 import PriorityBadge from "@/components/PriorityBadge";
 import TaskTypeBadge from "@/components/TaskTypeBadge";
 import { useProject, type InitialProjectData } from "@/hooks/useProject";
-import type { ColumnKey } from "@/lib/data";
+import type { ColumnKey, Task } from "@/lib/data";
 import { exportToCSV, exportToExcel, exportToExcelAttachmentsOnly, exportToPDF, exportToJSON } from "@/lib/exportUtils";
 import { createSupabaseBrowser } from "@/lib/auth-browser";
 import { useAdminSettings } from "@/lib/adminSettingsContext";
@@ -495,6 +495,18 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     const task = await addTask(sectionId, newTaskName.trim(), newTaskDueDate || undefined);
     setNewTaskName(""); setNewTaskDueDate(""); setAddingIn(null);
     if (task) { setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }
+  };
+
+  // Click on a task's name text: while the detail panel is already open, clicking any other
+  // task should switch the panel to it (not drop into inline rename). Only the currently-open
+  // task's own name — or no panel being open at all — still enters inline rename.
+  const handleNameClick = (task: Task) => {
+    if (!task.name) return;
+    if (selectedTaskId && selectedTaskId !== task.id) {
+      setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false);
+    } else {
+      setEditingTaskId(task.id); setEditingTaskName(task.name);
+    }
   };
 
   const handlePaste = async (e: React.ClipboardEvent<HTMLInputElement>, sectionId: string) => {
@@ -1111,7 +1123,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                   ) : (
                     <>
                       <span className={`min-w-0 truncate cursor-text flex items-center gap-1 ${task.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`}
-                        onClick={e => { if (!task.name) return; e.stopPropagation(); setEditingTaskId(task.id); setEditingTaskName(task.name); }}>
+                        onClick={e => { e.stopPropagation(); handleNameClick(task); }}>
                         {task.is_milestone && <span className="text-amber-500 text-[10px] flex-shrink-0">◆</span>}
                         {task.name}
                         {task.jira_has_updates && <span title="Updated in Jira — open to review" className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0 inline-block" />}
@@ -1121,11 +1133,11 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                   )}
                 </div>
                 <button
-                  className="flex-shrink-0 p-1 mr-1 text-[#B0B3B8] hover:text-[#4573D9] hover:bg-[#EEF2FB] rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="flex-shrink-0 p-2 -m-1 mr-1 text-[#B0B3B8] hover:text-[#4573D9] hover:bg-[#EEF2FB] rounded sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                   onClick={e => { e.stopPropagation(); setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }}
                   title="Open detail"
                 >
-                  <ChevronRight size={13} />
+                  <ChevronRight size={16} />
                 </button>
               </div>
               {visibleCols.includes("status") && <div className="hidden sm:block w-32 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}><StatusBadge compact value={task.status} onChange={v => updateTaskOrBulk(task.id, { status: v })} /></div>}
@@ -1303,7 +1315,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                           <>
                             <span
                               className={`min-w-0 truncate cursor-text flex items-center gap-1 ${task.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`}
-                              onClick={e => { if (!task.name) return; e.stopPropagation(); setEditingTaskId(task.id); setEditingTaskName(task.name); }}
+                              onClick={e => { e.stopPropagation(); handleNameClick(task); }}
                             >
                               {task.name}
                               {task.jira_has_updates && <span title="Updated in Jira — open to review" className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0 inline-block" />}
@@ -1316,11 +1328,11 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                         )}
                       </div>
                       <button
-                        className="flex-shrink-0 p-1 mr-1 text-[#B0B3B8] hover:text-[#4573D9] hover:bg-[#EEF2FB] rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="flex-shrink-0 p-2 -m-1 mr-1 text-[#B0B3B8] hover:text-[#4573D9] hover:bg-[#EEF2FB] rounded sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                         onClick={e => { e.stopPropagation(); setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }}
                         title="Open detail"
                       >
-                        <ChevronRight size={13} />
+                        <ChevronRight size={16} />
                       </button>
                     </div>
 

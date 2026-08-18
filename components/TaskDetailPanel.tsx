@@ -85,10 +85,18 @@ export default function TaskDetailPanel({
   addAttachment, removeAttachment, addSection, userEmail, isAdmin = false, standalone = false,
 }: Props) {
   const { lockPriorities, requireAssigneeApproval } = useAdminSettings();
-  const sectionTasks = tasks.filter(t => t.section_id === task.section_id);
+  // Frozen at mount so completing/hiding the open task (e.g. "hide completed" filters it
+  // out of `tasks`) can't shift prev/next navigation to the wrong task. Only re-taken when
+  // the panel opens a different task (parent remounts via `key={selectedTaskId}`).
+  const [sectionTasks] = useState<Task[]>(() => {
+    const bySection = tasks.filter(t => t.section_id === task.section_id);
+    return bySection.some(t => t.id === task.id)
+      ? bySection
+      : [...bySection, task].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+  });
   const taskIndex = sectionTasks.findIndex(t => t.id === task.id);
   const prevTask  = taskIndex > 0 ? sectionTasks[taskIndex - 1] : null;
-  const nextTask  = taskIndex < sectionTasks.length - 1 ? sectionTasks[taskIndex + 1] : null;
+  const nextTask  = taskIndex >= 0 && taskIndex < sectionTasks.length - 1 ? sectionTasks[taskIndex + 1] : null;
   const [editingTitle, setEditingTitle]   = useState(!task.name);
   const [titleDraft, setTitleDraft]       = useState(task.name);
   const [uploading, setUploading]         = useState(false);
