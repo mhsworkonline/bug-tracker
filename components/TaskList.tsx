@@ -19,7 +19,7 @@ import PriorityBadge from "@/components/PriorityBadge";
 import TaskTypeBadge from "@/components/TaskTypeBadge";
 import { useProject, type InitialProjectData } from "@/hooks/useProject";
 import type { ColumnKey } from "@/lib/data";
-import { exportToCSV, exportToExcel, exportToPDF, exportToJSON } from "@/lib/exportUtils";
+import { exportToCSV, exportToExcel, exportToExcelAttachmentsOnly, exportToPDF, exportToJSON } from "@/lib/exportUtils";
 import { createSupabaseBrowser } from "@/lib/auth-browser";
 import { useAdminSettings } from "@/lib/adminSettingsContext";
 import { ADMIN_EMAIL } from "@/lib/constants";
@@ -572,7 +572,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     setJiraConfirm({ title, body: describe(resolved.name, resolved.key), action, showSkipCompleted });
   };
 
-  const handleExport = async (type: "csv"|"excel"|"excel-delta"|"pdf"|"json", includeCompleted = false) => {
+  const handleExport = async (type: "csv"|"excel"|"excel-delta"|"excel-attachments-only"|"excel-attachments-only-delta"|"pdf"|"json", includeCompleted = false) => {
     if (!project) return;
     // Independent of the on-screen "Show completed" toggle — starts from the
     // search/filter/sort-applied list and only adds/drops completed-status tasks
@@ -590,6 +590,23 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
       }
       if (!excelTasks.length) { alert("No new or changed tasks since the last report."); return; }
       await exportToExcel(project, sections, excelTasks, taskTypes);
+
+      const now = new Date().toISOString();
+      const { supabase } = await import("@/lib/supabase");
+      await supabase.from("BT_projects").update({ last_excel_export_at: now }).eq("id", project.id);
+      const updatedProject = { ...project, last_excel_export_at: now };
+      updateProject(updatedProject);
+      updateProjectLocal(updatedProject);
+    }
+
+    if (type === "excel-attachments-only" || type === "excel-attachments-only-delta") {
+      let excelTasks = exportTasks;
+      if (type === "excel-attachments-only-delta" && project.last_excel_export_at) {
+        const since = new Date(project.last_excel_export_at);
+        excelTasks = exportTasks.filter(t => new Date(t.updated_at) > since);
+      }
+      if (!excelTasks.length) { alert("No new or changed tasks since the last report."); return; }
+      await exportToExcelAttachmentsOnly(project, sections, excelTasks);
 
       const now = new Date().toISOString();
       const { supabase } = await import("@/lib/supabase");

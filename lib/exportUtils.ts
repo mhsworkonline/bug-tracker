@@ -166,7 +166,7 @@ function buildProjectSheet(
       font:      { bold: true, sz: 13, color: { rgb: "FFFFFF" } },
       fill:      { fgColor: { rgb: "334155" } },
       alignment: { wrapText: true, vertical: "center", horizontal: "center" },
-      border:    BORDER,
+      border:    FILLED_BORDER,
     };
   });
 
@@ -257,6 +257,120 @@ function buildProjectSheet(
   });
 
   return ws;
+}
+
+// Darker/solid border for the curtailed sheet only — keeps the full-report BORDER const untouched.
+const FILLED_BORDER = {
+  top:    { style: "thin", color: { rgb: "64748B" } },
+  bottom: { style: "thin", color: { rgb: "64748B" } },
+  left:   { style: "thin", color: { rgb: "64748B" } },
+  right:  { style: "thin", color: { rgb: "64748B" } },
+};
+
+// Curtailed sheet: S.No., Section, Task Name, Attachment 1, Attachment 2 only.
+// Sorted by Section name; S.No. renumbered from that sorted order. Fully separate from buildProjectSheet.
+function buildAttachmentsOnlySheet(
+  XLSX: typeof import("xlsx-js-style"),
+  project: Project,
+  sections: Section[],
+  tasks: Task[],
+) {
+  const headers   = ["S.No.", "Section", "Task Name", "Attachment 1", "Attachment 2"];
+  const att1Idx   = 3;
+  const att2Idx   = 4;
+  const isAttCol  = (c: number) => c === att1Idx || c === att2Idx;
+
+  const sorted = tasks
+    .map(t => ({ task: t, sectionName: sections.find(s => s.id === t.section_id)?.name ?? "" }))
+    .sort((a, b) => a.sectionName.localeCompare(b.sectionName));
+
+  const rows = sorted.map(({ task, sectionName }, i) => {
+    const attachments = task.BT_attachments ?? [];
+    return [
+      i + 1,
+      sectionName,
+      formatTaskName(task.name, sectionName, project),
+      attachments[0]?.url ?? "",
+      attachments[1]?.url ?? "",
+    ];
+  });
+
+  const totalRows = rows.length + 1;
+  const totalCols = headers.length;
+
+  const aoa: (string | number)[][] = [headers, ...rows];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+  // Header row styling
+  headers.forEach((_, c) => {
+    const ref = XLSX.utils.encode_cell({ r: 0, c });
+    if (!ws[ref]) ws[ref] = { v: "", t: "s" };
+    ws[ref].s = {
+      font:      { bold: true, sz: 13, color: { rgb: "FFFFFF" } },
+      fill:      { fgColor: { rgb: "334155" } },
+      alignment: { wrapText: true, vertical: "center", horizontal: "center" },
+      border:    FILLED_BORDER,
+    };
+  });
+
+  // Data row styling
+  rows.forEach((_, rowIdx) => {
+    const r = rowIdx + 1;
+    headers.forEach((__, c) => {
+      const ref = XLSX.utils.encode_cell({ r, c });
+      if (!ws[ref]) ws[ref] = { v: "", t: "s" };
+
+      const base: Record<string, unknown> = {
+        alignment: { wrapText: true, vertical: "top" },
+        border:    FILLED_BORDER,
+      };
+
+      if (isAttCol(c)) {
+        const url = String(ws[ref].v ?? "");
+        if (url) {
+          base.font = { color: { rgb: "4573D9" }, underline: true };
+          ws[ref].l = { Target: url };
+          ws[ref].v = url;
+        }
+      }
+
+      ws[ref].s = base;
+    });
+  });
+
+  for (let r = 0; r < totalRows; r++) {
+    for (let c = 0; c < totalCols; c++) {
+      const ref = XLSX.utils.encode_cell({ r, c });
+      if (!ws[ref]) {
+        ws[ref] = { v: "", t: "s", s: { border: FILLED_BORDER, alignment: { wrapText: true, vertical: "top" } } };
+      }
+    }
+  }
+  const fullRange = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: totalRows - 1, c: totalCols - 1 } });
+  ws["!ref"] = fullRange;
+  ws["!autofilter"] = { ref: fullRange };
+
+  ws["!cols"] = headers.map((h, i) => {
+    if (i === 0)      return { wch: 8 };
+    if (i === 1)      return { wch: 20 };
+    if (i === 2)      return { wch: 40 };
+    if (isAttCol(i))  return { wch: 25 };
+    return { wch: Math.max(12, h.length + 4) };
+  });
+
+  return ws;
+}
+
+// Curtailed export: S.No., Section, Task Name, Attachment 1, Attachment 2 — sorted by Section name.
+// Fully separate from exportToExcel — does not reuse buildProjectSheet.
+export async function exportToExcelAttachmentsOnly(project: Project, sections: Section[], tasks: Task[]) {
+  const XLSX = await import("xlsx-js-style");
+  if (!tasks.length) { alert("No tasks to export."); return; }
+
+  const ws = buildAttachmentsOnlySheet(XLSX, project, sections, tasks);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Attachments");
+  await freezeHeaderRowAndDownload(XLSX, wb, `${project.name}-attachments.xlsx`);
 }
 
 // Freezes the header row on every sheet in the workbook (raw XML patch — xlsx-js-style has no API for this).

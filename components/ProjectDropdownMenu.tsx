@@ -14,7 +14,7 @@ interface Props {
   canManage: boolean;
   canExport: boolean;
   position: { top: number; left: number };
-  onExport: (type: "csv" | "excel" | "excel-delta" | "pdf" | "json", includeCompleted: boolean) => void;
+  onExport: (type: "csv" | "excel" | "excel-delta" | "excel-attachments-only" | "excel-attachments-only-delta" | "pdf" | "json", includeCompleted: boolean) => void;
   onEditSettings: () => void;
   onManageMembers: () => void;
   onCopyLink: () => void;
@@ -136,6 +136,22 @@ export default function ProjectDropdownMenu({
               <span className="w-5 h-5 rounded text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#16A34A" }}>X</span>
               <span className="flex-1">
                 Excel — Since last report
+                {project.last_excel_export_at && (
+                  <span className="block text-[11px] text-[#9EA3AA]">Last sent {new Date(project.last_excel_export_at).toLocaleDateString()}</span>
+                )}
+              </span>
+            </button>
+            <div className="my-1 border-t border-[#F0F1F3]" />
+            <button onClick={() => { onExport("excel-attachments-only", includeCompleted); onClose(); }}
+              className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left">
+              <span className="w-5 h-5 rounded text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#16A34A" }}>X</span>
+              Excel — Attachments only (Full report)
+            </button>
+            <button onClick={() => { onExport("excel-attachments-only-delta", includeCompleted); onClose(); }}
+              className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#151B26] hover:bg-[#FAFBFC] text-left">
+              <span className="w-5 h-5 rounded text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#16A34A" }}>X</span>
+              <span className="flex-1">
+                Excel — Attachments only (Since last report)
                 {project.last_excel_export_at && (
                   <span className="block text-[11px] text-[#9EA3AA]">Last sent {new Date(project.last_excel_export_at).toLocaleDateString()}</span>
                 )}
