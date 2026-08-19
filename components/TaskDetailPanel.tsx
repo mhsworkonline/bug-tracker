@@ -29,6 +29,7 @@ interface Props {
   toggleTask: ProjectData["toggleTask"];
   duplicateTask: ProjectData["duplicateTask"];
   deleteTask: ProjectData["deleteTask"];
+  permanentlyDeleteTask: ProjectData["permanentlyDeleteTask"];
   addTask: ProjectData["addTask"];
   onOpenTask: (taskId: string) => void;
   addAttachment: ProjectData["addAttachment"];
@@ -48,6 +49,8 @@ function formatActivityLog(log: { action: string; meta: Record<string, string> }
     case "task_name_changed":        return `renamed task to "${m.to}"`;
     case "task_due_date_changed":    return `changed due date from ${m.from || "none"} to ${m.to || "none"}`;
     case "task_type_changed":        return `changed type from "${m.from}" to "${m.to}"`;
+    case "task_section_changed":     return `moved from "${m.from || "none"}" to "${m.to || "none"}"`;
+    case "task_restored":            return `restored this task from trash`;
     case "task_description_changed": return `updated the description`;
     default:                         return log.action.replace(/_/g, " ");
   }
@@ -81,7 +84,7 @@ async function pngToJpeg(blob: Blob, quality = 0.85): Promise<Blob> {
 
 export default function TaskDetailPanel({
   task, tasks, projectId, projectName, projectColor, sections, onClose,
-  updateTask, updateTaskLocal, toggleTask, duplicateTask, deleteTask, addTask, onOpenTask,
+  updateTask, updateTaskLocal, toggleTask, duplicateTask, deleteTask, permanentlyDeleteTask, addTask, onOpenTask,
   addAttachment, removeAttachment, addSection, userEmail, isAdmin = false, standalone = false,
 }: Props) {
   const { lockPriorities, requireAssigneeApproval } = useAdminSettings();
@@ -152,7 +155,7 @@ export default function TaskDetailPanel({
         .then(({ data }) => setActivityLogs((data as typeof activityLogs) ?? []));
       supabase.from("BT_comments").select("*").eq("task_id", task.id).order("created_at", { ascending: true })
         .then(({ data }) => setComments((data as typeof comments) ?? []));
-      supabase.from("BT_tasks").select("id, name, completed, status").eq("parent_task_id", task.id).order("created_at", { ascending: true })
+      supabase.from("BT_tasks").select("id, name, completed, status").eq("parent_task_id", task.id).is("deleted_at", null).order("created_at", { ascending: true })
         .then(({ data }) => setSubtasks((data as typeof subtasks) ?? []));
       if (userEmail) {
         supabase.from("BT_task_followers").select("id").eq("task_id", task.id).eq("user_email", userEmail).single()
@@ -458,7 +461,7 @@ export default function TaskDetailPanel({
     if (titleSaveTimer.current) clearTimeout(titleSaveTimer.current);
     const name = titleDraft.trim();
     if (name && name !== task.name) updateTask(task.id, { name });
-    if (!name && !task.description?.trim() && attachments.length === 0) deleteTask(task.id);
+    if (!name && !task.description?.trim() && attachments.length === 0) permanentlyDeleteTask(task.id);
   };
 
   const handleClose    = () => { commitOrDelete(); onClose(); };

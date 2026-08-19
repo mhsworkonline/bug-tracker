@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import AssignmentRequestsSection from "../AssignmentRequestsSection";
+import TrashRetentionSection from "../TrashRetentionSection";
 import StatusSection from "../StatusSection";
 import PrioritySection from "../PrioritySection";
 import TaskTypeSection from "../TaskTypeSection";
@@ -28,7 +29,10 @@ function SettingsContent() {
       </div>
       <div className="px-4 sm:px-8 pb-8 flex flex-col gap-6 max-w-3xl">
         {tab === "general" && (
-          <AssignmentRequestsSection />
+          <>
+            <AssignmentRequestsSection />
+            <TrashRetentionSection />
+          </>
         )}
         {tab === "labels" && (
           <>

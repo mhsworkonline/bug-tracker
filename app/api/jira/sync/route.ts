@@ -60,7 +60,8 @@ export async function POST(req: NextRequest) {
   let query = client
     .from("BT_tasks")
     .select("id, name, jira_issue_key, jira_remote_updated_at, status, priority, assignee, due_date", { count: "exact" })
-    .not("jira_issue_key", "is", null);
+    .not("jira_issue_key", "is", null)
+    .is("deleted_at", null);
   if (project_id)            query = query.eq("project_id", project_id);
   else if (task_ids?.length) query = query.in("id", task_ids);
 

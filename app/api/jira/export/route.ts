@@ -115,7 +115,8 @@ export async function POST(req: NextRequest) {
     .from("BT_tasks")
     .select("*, BT_attachments(name, url)")
     .not("name", "is", null)
-    .neq("name", "");
+    .neq("name", "")
+    .is("deleted_at", null);
   if (project_id)            query = query.eq("project_id", project_id).is("parent_task_id", null);
   else if (task_ids?.length) query = query.in("id", task_ids);
   else return NextResponse.json({ error: "No tasks selected." }, { status: 400 });

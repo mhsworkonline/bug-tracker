@@ -73,6 +73,7 @@ export default function MyTasksClient({ userEmail, initialTasks }: { userEmail: 
         .from("BT_tasks")
         .select("id, name, status, priority, due_date, completed, project_id")
         .eq("assignee", userEmail)
+        .is("deleted_at", null)
         .order("due_date", { ascending: true, nullsFirst: false });
 
       if (!taskRows?.length) { setLoading(false); return; }

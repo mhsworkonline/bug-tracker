@@ -33,6 +33,10 @@ export interface ProjectData {
   addAttachment: (taskId: string, att: Omit<Attachment, "id" | "task_id" | "uploaded_at">) => Promise<void>;
   removeAttachment: (attId: string, taskId: string, fileUrl?: string) => Promise<void>;
   updateColumnConfig: (key: ColumnKey, visible: boolean) => Promise<void>;
+  fetchDeletedTasks: () => Promise<Task[]>;
+  restoreTask: (taskId: string) => Promise<void>;
+  permanentlyDeleteTask: (taskId: string) => Promise<void>;
+  purgeExpiredTasks: (retentionDays: number) => Promise<void>;
 }
 
 // Data fetched on the server (see app/projects/[id]/page.tsx) and passed in so the
@@ -63,6 +67,7 @@ export function useProject(projectId: string, userEmail?: string, initialData?: 
         supabase.from("BT_tasks")
           .select("*, BT_attachments(*)")
           .eq("project_id", projectId)
+          .is("deleted_at", null)
           .order("position"),
         supabase.from("BT_column_configs").select("*").eq("project_id", projectId).order("position"),
       ]);
@@ -240,12 +245,17 @@ export function useProject(projectId: string, userEmail?: string, initialData?: 
         logActivity(projectId, "task_name_changed", { task_name: task.name, to: updates.name }, taskId, userEmail);
       if (updates.due_date !== undefined && updates.due_date !== task.due_date)
         logActivity(projectId, "task_due_date_changed", { task_name: name, from: task.due_date ?? "", to: updates.due_date ?? "" }, taskId, userEmail);
+      if (updates.section_id !== undefined && updates.section_id !== task.section_id) {
+        const fromName = sections.find(s => s.id === task.section_id)?.name ?? "";
+        const toName = sections.find(s => s.id === updates.section_id)?.name ?? "";
+        logActivity(projectId, "task_section_changed", { task_name: name, from: fromName, to: toName }, taskId, userEmail);
+      }
       if (updates.task_type !== undefined && updates.task_type !== task.task_type)
         logActivity(projectId, "task_type_changed", { task_name: name, from: task.task_type ?? "", to: updates.task_type ?? "" }, taskId, userEmail);
       if (updates.description !== undefined && updates.description !== task.description)
         logActivity(projectId, "task_description_changed", { task_name: name }, taskId, userEmail);
     }
-  }, [tasks, projectId, userEmail]);
+  }, [tasks, sections, projectId, userEmail]);
 
   // Local-only optimistic update — no DB write, no activity log. For live in-progress typing (e.g. title) to reflect instantly in the list without spamming saves per keystroke.
   const updateTaskLocal = useCallback((taskId: string, updates: Partial<Omit<Task, "id" | "project_id" | "created_at">>) => {
@@ -263,23 +273,78 @@ export function useProject(projectId: string, userEmail?: string, initialData?: 
     });
   }, [tasks, updateTask]);
 
+  // Soft delete: marks the task (and its direct subtasks, matching the DB's own
+  // parent_task_id CASCADE so a deleted parent doesn't leave orphaned children visible)
+  // as deleted instead of removing the row. Attachments/storage files are left alone —
+  // they're only cleaned up on permanent purge, so a restore comes back intact.
   const deleteTask = useCallback(async (taskId: string) => {
     const task = tasks.find(t => t.id === taskId);
-    if (task?.BT_attachments?.length) {
-      Promise.allSettled(
-        task.BT_attachments.map(att =>
-          fetch("/api/delete-file", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ url: att.url }),
-          })
-        )
-      );
-    }
-    setTasks(prev => prev.filter(t => t.id !== taskId));
-    await supabase.from("BT_tasks").delete().eq("id", taskId);
+    const childIds = tasks.filter(t => t.parent_task_id === taskId).map(t => t.id);
+    const ids = [taskId, ...childIds];
+    const now = new Date().toISOString();
+    setTasks(prev => prev.filter(t => !ids.includes(t.id)));
+    await supabase.from("BT_tasks").update({ deleted_at: now, deleted_by: userEmail ?? null }).in("id", ids);
     if (task) logActivity(projectId, "task_deleted", { task_name: task.name }, taskId, userEmail);
   }, [tasks, projectId, userEmail]);
+
+  /* ── trash (soft-deleted tasks) ── */
+  const fetchDeletedTasks = useCallback(async (): Promise<Task[]> => {
+    const { data } = await supabase
+      .from("BT_tasks")
+      .select("*, BT_attachments(*)")
+      .eq("project_id", projectId)
+      .not("deleted_at", "is", null)
+      .order("deleted_at", { ascending: false });
+    return data ?? [];
+  }, [projectId]);
+
+  const restoreTask = useCallback(async (taskId: string) => {
+    const { data, error } = await supabase
+      .from("BT_tasks")
+      .update({ deleted_at: null, deleted_by: null })
+      .eq("id", taskId)
+      .select("*, BT_attachments(*)")
+      .single();
+    if (error || !data) return;
+    setTasks(prev => prev.some(t => t.id === data.id) ? prev : [...prev, data]);
+    logActivity(projectId, "task_restored", { task_name: data.name }, taskId, userEmail);
+  }, [projectId, userEmail]);
+
+  // Hard delete of an already soft-deleted task: removes its attachment files from
+  // storage, then the row (DB cascades take care of comments/followers/dependencies/
+  // custom field values/subtasks/etc., same as the old hard-delete behavior did).
+  const permanentlyDeleteTask = useCallback(async (taskId: string) => {
+    // Also drops it from the live list — a no-op for an already soft-deleted task (it
+    // was filtered out of `tasks` already), but needed when called directly on a task
+    // that's still visible (e.g. discarding a never-saved blank task).
+    setTasks(prev => prev.filter(t => t.id !== taskId));
+    const { data: att } = await supabase.from("BT_attachments").select("url").eq("task_id", taskId);
+    if (att?.length) {
+      await Promise.allSettled(
+        att.map(a => fetch("/api/delete-file", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: a.url }),
+        }))
+      );
+    }
+    await supabase.from("BT_tasks").delete().eq("id", taskId);
+  }, []);
+
+  // Permanently removes every task in this project whose deleted_at is older than the
+  // configured retention window. Called lazily whenever the Trash panel is opened,
+  // rather than via a scheduled job.
+  const purgeExpiredTasks = useCallback(async (retentionDays: number) => {
+    const cutoff = new Date(Date.now() - retentionDays * 86400000).toISOString();
+    const { data: expired } = await supabase
+      .from("BT_tasks")
+      .select("id")
+      .eq("project_id", projectId)
+      .not("deleted_at", "is", null)
+      .lt("deleted_at", cutoff);
+    if (!expired?.length) return;
+    await Promise.all(expired.map(t => permanentlyDeleteTask(t.id)));
+  }, [projectId, permanentlyDeleteTask]);
 
   /* ── attachments ── */
   const addAttachment = useCallback(async (
@@ -339,5 +404,6 @@ export function useProject(projectId: string, userEmail?: string, initialData?: 
     addTask, duplicateTask, updateTask, updateTaskLocal, toggleTask, deleteTask,
     addAttachment, removeAttachment,
     updateColumnConfig,
+    fetchDeletedTasks, restoreTask, permanentlyDeleteTask, purgeExpiredTasks,
   };
 }

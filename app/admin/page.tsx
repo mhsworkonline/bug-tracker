@@ -11,7 +11,7 @@ const sevenDaysAgoISO = () => new Date(Date.now() - 7 * 86400000).toISOString();
 export default async function AdminDashboard() {
   const [projRes, taskRes, logRes] = await Promise.all([
     supabase.from("BT_projects").select("id, name"),
-    supabase.from("BT_tasks").select("id, status, completed, due_date, project_id"),
+    supabase.from("BT_tasks").select("id, status, completed, due_date, project_id").is("deleted_at", null),
     supabase.from("BT_activity_logs")
       .select("created_at")
       .gte("created_at", sevenDaysAgoISO())

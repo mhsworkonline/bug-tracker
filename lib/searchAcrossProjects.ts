@@ -25,7 +25,7 @@ export async function searchTasksAcrossProjects(
 ): Promise<TaskSearchHit[]> {
   const q = query.trim();
   if (!q) return [];
-  let builder = supabase.from("BT_tasks").select("id, name, status, completed, project_id").ilike("name", `%${q}%`).limit(limit);
+  let builder = supabase.from("BT_tasks").select("id, name, status, completed, project_id").ilike("name", `%${q}%`).is("deleted_at", null).limit(limit);
   if (allowedProjectIds !== null) builder = builder.in("project_id", allowedProjectIds.length ? allowedProjectIds : NONE);
   const { data } = await builder;
   return data ?? [];

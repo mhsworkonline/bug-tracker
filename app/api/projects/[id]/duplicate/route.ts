@@ -34,7 +34,7 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ id: s
     }
   }
 
-  const { data: tasks } = await client.from("BT_tasks").select("*").eq("project_id", id).order("position");
+  const { data: tasks } = await client.from("BT_tasks").select("*").eq("project_id", id).is("deleted_at", null).order("position");
   if (tasks?.length) {
     const newTasks = tasks.map(({ id: _id, created_at: _c, updated_at: _u, BT_attachments: _a, ...t }) => ({
       ...t,

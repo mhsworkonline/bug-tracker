@@ -19,11 +19,13 @@ interface Project { id: string; name: string; }
 const ACTION_LABELS: Record<string, string> = {
   task_created:             "Task created",
   task_deleted:             "Task deleted",
+  task_restored:            "Task restored",
   task_status_changed:      "Status changed",
   task_assignee_changed:    "Assignee changed",
   task_priority_changed:    "Priority changed",
   task_name_changed:        "Task renamed",
   task_due_date_changed:    "Due date changed",
+  task_section_changed:     "Section changed",
   task_type_changed:        "Type changed",
   task_description_changed: "Description updated",
   section_created:          "Section created",
@@ -47,6 +49,8 @@ function formatAction(entry: LogEntry): string {
     return `${label}: "${m.task_name}" — ${m.from || "none"} → ${m.to || "none"}`;
   if (entry.action === "task_type_changed")
     return `${label}: "${m.task_name}" — ${m.from} → ${m.to}`;
+  if (entry.action === "task_section_changed")
+    return `${label}: "${m.task_name}" — ${m.from || "none"} → ${m.to || "none"}`;
   if (m.task_name)    return `${label}: "${m.task_name}"`;
   if (m.section_name) return `${label}: "${m.section_name}"`;
   if (m.email)        return `${label}: ${m.email}`;

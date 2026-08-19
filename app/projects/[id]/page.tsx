@@ -14,7 +14,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     getUser(),
     supabase.from("BT_projects").select("*").eq("id", id).single(),
     supabase.from("BT_sections").select("*").eq("project_id", id).order("position"),
-    supabase.from("BT_tasks").select("*, BT_attachments(*)").eq("project_id", id).order("position"),
+    supabase.from("BT_tasks").select("*, BT_attachments(*)").eq("project_id", id).is("deleted_at", null).order("position"),
     supabase.from("BT_column_configs").select("*").eq("project_id", id).order("position"),
   ]);
 

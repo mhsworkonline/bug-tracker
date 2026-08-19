@@ -23,7 +23,7 @@ export default function TaskDetailStandalone({ projectId, taskId, userEmail }: P
   useEffect(() => {
     Promise.all([
       supabase.from("BT_tasks").select("*, BT_attachments(*)").eq("id", taskId).single(),
-      supabase.from("BT_tasks").select("*, BT_attachments(*)").eq("project_id", projectId),
+      supabase.from("BT_tasks").select("*, BT_attachments(*)").eq("project_id", projectId).is("deleted_at", null),
       supabase.from("BT_sections").select("*").eq("project_id", projectId).order("position"),
       supabase.from("BT_projects").select("*").eq("id", projectId).single(),
     ]).then(([t, ts, s, p]) => {
@@ -69,6 +69,12 @@ export default function TaskDetailStandalone({ projectId, taskId, userEmail }: P
 
   const duplicateTask: ProjectData["duplicateTask"] = async () => null;
   const deleteTask: ProjectData["deleteTask"] = async (id) => {
+    await supabase.from("BT_tasks").update({ deleted_at: new Date().toISOString(), deleted_by: userEmail ?? null }).eq("id", id);
+    if (id === taskId) router.push(`/projects/${projectId}`);
+  };
+  // Used only for a blank task discarded on close — a real hard delete, not soft delete,
+  // same as the main TaskList/TaskDetailPanel flow.
+  const permanentlyDeleteTask: ProjectData["permanentlyDeleteTask"] = async (id) => {
     await supabase.from("BT_tasks").delete().eq("id", id);
     if (id === taskId) router.push(`/projects/${projectId}`);
   };
@@ -111,6 +117,7 @@ export default function TaskDetailStandalone({ projectId, taskId, userEmail }: P
           toggleTask={toggleTask}
           duplicateTask={duplicateTask}
           deleteTask={deleteTask}
+          permanentlyDeleteTask={permanentlyDeleteTask}
           addTask={addTask}
           onOpenTask={(id) => router.push(`/projects/${projectId}/tasks/${id}`)}
           addAttachment={addAttachment}

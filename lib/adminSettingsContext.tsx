@@ -17,6 +17,7 @@ interface AdminSettings {
   membersCanManageMembers: boolean;
   membersCanExportJira: boolean;
   membersCanExportExcel: boolean;
+  taskTrashRetentionDays: number;
   statusByKey: (key: string) => StatusOption;
   priorityByKey: (key: string) => PriorityOption | null;
   taskTypeByKey: (key: string) => TaskTypeOption | null;
@@ -29,6 +30,7 @@ interface AdminSettings {
   saveMembersCanManageMembers: (v: boolean) => Promise<void>;
   saveMembersCanExportJira: (v: boolean) => Promise<void>;
   saveMembersCanExportExcel: (v: boolean) => Promise<void>;
+  saveTaskTrashRetentionDays: (v: number) => Promise<void>;
 }
 
 const FALLBACK_STATUS: StatusOption = { key: "", label: "Unknown", bg: "#F3F4F6", text: "#6B6F76", order: 99 };
@@ -38,10 +40,12 @@ const Ctx = createContext<AdminSettings>({
   taskTypes: DEFAULT_TASK_TYPES, storageConfig: DEFAULT_STORAGE,
   lockPriorities: false, requireAssigneeApproval: false,
   membersCanManageMembers: true, membersCanExportJira: true, membersCanExportExcel: true,
+  taskTrashRetentionDays: 30,
   statusByKey: () => FALLBACK_STATUS, priorityByKey: () => null, taskTypeByKey: () => null,
   saveStatuses: async () => {}, savePriorities: async () => {}, saveTaskTypes: async () => {},
   saveStorageConfig: async () => {}, saveLockPriorities: async () => {}, saveRequireAssigneeApproval: async () => {},
   saveMembersCanManageMembers: async () => {}, saveMembersCanExportJira: async () => {}, saveMembersCanExportExcel: async () => {},
+  saveTaskTrashRetentionDays: async () => {},
 });
 
 export function AdminSettingsProvider({ children }: { children: React.ReactNode }) {
@@ -54,6 +58,7 @@ export function AdminSettingsProvider({ children }: { children: React.ReactNode 
   const [membersCanManageMembers, setMembersCanManageMembers] = useState(true);
   const [membersCanExportJira, setMembersCanExportJira]       = useState(true);
   const [membersCanExportExcel, setMembersCanExportExcel]     = useState(true);
+  const [taskTrashRetentionDays, setTaskTrashRetentionDays]   = useState(30);
 
   useEffect(() => {
     supabase.from("BT_settings").select("*").then(({ data }) => {
@@ -68,6 +73,10 @@ export function AdminSettingsProvider({ children }: { children: React.ReactNode 
         if (row.key === "members_manage_members")    setMembersCanManageMembers(!(row.value === false || row.value?.enabled === false));
         if (row.key === "members_jira_export")       setMembersCanExportJira(!(row.value === false || row.value?.enabled === false));
         if (row.key === "members_excel_export")      setMembersCanExportExcel(!(row.value === false || row.value?.enabled === false));
+        if (row.key === "task_trash_retention_days") {
+          const n = typeof row.value === "number" ? row.value : Number(row.value?.days);
+          if (Number.isFinite(n) && n > 0) setTaskTrashRetentionDays(n);
+        }
       }
     });
   }, []);
@@ -91,16 +100,19 @@ export function AdminSettingsProvider({ children }: { children: React.ReactNode 
   const saveMembersCanManageMembers = useCallback(async (v: boolean) => { setMembersCanManageMembers(v); await upsert("members_manage_members", v); }, []);
   const saveMembersCanExportJira    = useCallback(async (v: boolean) => { setMembersCanExportJira(v);    await upsert("members_jira_export", v); }, []);
   const saveMembersCanExportExcel   = useCallback(async (v: boolean) => { setMembersCanExportExcel(v);   await upsert("members_excel_export", v); }, []);
+  const saveTaskTrashRetentionDays  = useCallback(async (v: number)  => { setTaskTrashRetentionDays(v);  await upsert("task_trash_retention_days", v); }, []);
 
   return (
     <Ctx.Provider value={{
       statuses, priorities, taskTypes, storageConfig,
       lockPriorities, requireAssigneeApproval,
       membersCanManageMembers, membersCanExportJira, membersCanExportExcel,
+      taskTrashRetentionDays,
       statusByKey, priorityByKey, taskTypeByKey,
       saveStatuses, savePriorities, saveTaskTypes, saveStorageConfig,
       saveLockPriorities, saveRequireAssigneeApproval,
       saveMembersCanManageMembers, saveMembersCanExportJira, saveMembersCanExportExcel,
+      saveTaskTrashRetentionDays,
     }}>
       {children}
     </Ctx.Provider>

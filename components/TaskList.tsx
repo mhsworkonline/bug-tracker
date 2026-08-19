@@ -6,6 +6,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import {
   Star, ChevronDown, ChevronRight, ChevronUp, Share2, Settings2, Filter, ArrowUpDown,
   Search, Plus, User, Calendar, MoreHorizontal, Loader2, X, ChevronsUpDown, ChevronsDownUp,
+  FolderInput, Trash2,
 } from "lucide-react";
 import TaskDetailPanel from "@/components/TaskDetailPanel";
 import CustomizePanel from "@/components/CustomizePanel";
@@ -39,6 +40,7 @@ const GanttView        = dynamic(() => import("@/components/GanttView"),        
 const MembersPanel     = dynamic(() => import("@/components/MembersPanel"));
 const ImportModal      = dynamic(() => import("@/components/ImportModal"));
 const InboxPanel       = dynamic(() => import("@/components/InboxPanel"));
+const TrashPanel        = dynamic(() => import("@/components/TrashPanel"));
 const ShareProjectModal = dynamic(() => import("@/components/ShareProjectModal"));
 
 const TABS = ["List","Board","Calendar","Gantt","Dashboard"];
@@ -153,7 +155,8 @@ export default function TaskList({ projectId, userEmail, initialData }: { projec
     project, sections, tasks, columnConfigs, loading, error,
     updateProjectLocal,
     addSection, addSections, updateSection, deleteSection, duplicateSection,
-    addTask, updateTask, updateTaskLocal, toggleTask, duplicateTask, deleteTask,
+    addTask, updateTask, updateTaskLocal, toggleTask, duplicateTask, deleteTask, permanentlyDeleteTask,
+    fetchDeletedTasks, restoreTask, purgeExpiredTasks,
     addAttachment, removeAttachment,
     updateColumnConfig,
   } = useProject(projectId, userEmail, initialData);
@@ -184,6 +187,8 @@ export default function TaskList({ projectId, userEmail, initialData }: { projec
   const [activeTab, setActiveTab]             = useState<"List"|"Board"|"Calendar"|"Gantt"|"Dashboard">("List");
   const [selectedTaskId, setSelectedTaskId]   = useState<string | null>(() => searchParams.get("task"));
   const [selectedIds, setSelectedIds]         = useState<Set<string>>(new Set());
+  const [showMoveMenu, setShowMoveMenu]       = useState(false);
+  const moveMenuRef                           = useRef<HTMLDivElement>(null);
   const [showCustomize, setShowCustomize]     = useState(false);
   const [showColumns, setShowColumns]         = useState(false);
   const [showShare, setShowShare]             = useState(false);
@@ -191,6 +196,7 @@ export default function TaskList({ projectId, userEmail, initialData }: { projec
   const [jiraWorking, setJiraWorking]         = useState(false);
   const [jiraLoadingMsg, setJiraLoadingMsg]   = useState<string | null>(null);
   const [jiraConfirm, setJiraConfirm]         = useState<{ title: string; body: string; action: () => void; showSkipCompleted?: boolean } | null>(null);
+  const [confirmDialog, setConfirmDialog]     = useState<{ title: string; body: string; action: () => void } | null>(null);
   const [jiraKeyInput, setJiraKeyInput]       = useState<string | null>(null);
   // Default true: completed tasks stay out of Jira unless the user unchecks this in the
   // confirm modal. A ref (not just the state) so the action closure — built before the
@@ -209,6 +215,7 @@ export default function TaskList({ projectId, userEmail, initialData }: { projec
   const [searchQuery, setSearchQuery]         = useState("");
   const [showSearch, setShowSearch]           = useState(false);
   const [showBulkSections, setShowBulkSections] = useState(false);
+  const [showTrash, setShowTrash]             = useState(false);
   const [bulkSectionsText, setBulkSectionsText] = useState("");
 
   const [activeFilters, setActiveFilters] = useState<ActiveFilters>(DEFAULT_FILTERS);
@@ -311,6 +318,16 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
   }, [showStatusMenu]);
+
+  useEffect(() => {
+    if (!showMoveMenu) return;
+    const close = (e: MouseEvent) => {
+      if (moveMenuRef.current && !moveMenuRef.current.contains(e.target as Node))
+        setShowMoveMenu(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [showMoveMenu]);
 
   const visibleCols = columnConfigs.filter(c => c.visible).map(c => c.column_key as ColumnKey);
 
@@ -471,6 +488,17 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
 
   const updateSelectedTasks = async (updates: Parameters<typeof updateTask>[1]) => {
     await Promise.all([...selectedIds].map(id => updateTask(id, updates)));
+  };
+
+  // Moves every selected task into sectionId, appending each after that section's
+  // existing tasks (same "append at bottom" convention addTask uses) rather than
+  // carrying over each task's old position, which could collide with tasks already there.
+  const moveSelectedTasksToSection = async (sectionId: string) => {
+    const ids = [...selectedIds];
+    let nextPosition = tasks.filter(t => t.section_id === sectionId).length;
+    await Promise.all(ids.map(id => updateTask(id, { section_id: sectionId, position: nextPosition++ })));
+    setShowMoveMenu(false);
+    setSelectedIds(new Set());
   };
 
   // If the task being changed is among selected, apply to all selected
@@ -686,6 +714,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
               <div title={userEmail} className="w-7 h-7 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold cursor-default">{userInitials}</div>
             )}
             <InboxPanel userEmail={userEmail} />
+            <button onClick={() => setShowTrash(true)} className="p-2 text-[#6B6F76] hover:bg-[#F5F5F5] rounded-md" title="Trash"><Trash2 size={16} /></button>
             <Link href="/my-tasks" className="hidden sm:flex px-2 py-1 text-xs text-[#6B6F76] border border-[#E8E8E9] rounded hover:bg-[#F5F5F5]">My Tasks</Link>
             <button onClick={handleLogout} className="px-2 py-1 text-xs text-[#6B6F76] border border-[#E8E8E9] rounded hover:bg-[#F5F5F5]">Logout</button>
           </div>
@@ -1006,6 +1035,31 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
               onChange={e => { if (e.target.value) updateSelectedTasks({ due_date: e.target.value }); }}
             />
           </label>
+          <div ref={moveMenuRef} className="relative">
+            <button
+              onClick={() => setShowMoveMenu(v => !v)}
+              className="flex items-center gap-1 text-white/80 hover:text-white"
+            >
+              <FolderInput size={13} />
+              Move to section
+            </button>
+            {showMoveMenu && (
+              <div className="absolute left-0 top-full mt-1 bg-white border border-[#E8E8E9] rounded-[6px] shadow-lg z-50 py-1 w-52 max-h-64 overflow-y-auto text-[#151B26]">
+                {sections.length === 0 && (
+                  <div className="px-3 py-1.5 text-xs text-[#9EA3AA]">No sections yet</div>
+                )}
+                {[...sections].sort((a, b) => a.name.localeCompare(b.name)).map(s => (
+                  <button
+                    key={s.id}
+                    onClick={() => moveSelectedTasksToSection(s.id)}
+                    className="w-full flex items-center px-3 py-1.5 text-sm hover:bg-[#FAFBFC] text-left truncate"
+                  >
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           {(isAdmin || membersCanExportJira) && (
           <button
             onClick={() => {
@@ -1117,8 +1171,8 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                 <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-0.5 cursor-pointer py-0.5 pl-0 pr-1" onClick={() => { setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }}>
                   {editingTaskId === task.id ? (
                     <input autoFocus value={editingTaskName} onChange={e => setEditingTaskName(e.target.value)}
-                      onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") { e.stopPropagation(); if (!editingTaskName.trim() && !task.description && !(task.BT_attachments?.length)) { deleteTask(task.id); } else { updateTask(task.id, { name: editingTaskName.trim() || task.name }); } setEditingTaskId(null); }}}
-                      onBlur={() => { if (!editingTaskName.trim() && !task.description && !(task.BT_attachments?.length)) { deleteTask(task.id); } else { updateTask(task.id, { name: editingTaskName.trim() || task.name }); } setEditingTaskId(null); }}
+                      onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") { e.stopPropagation(); if (!editingTaskName.trim() && !task.description && !(task.BT_attachments?.length)) { permanentlyDeleteTask(task.id); } else { updateTask(task.id, { name: editingTaskName.trim() || task.name }); } setEditingTaskId(null); }}}
+                      onBlur={() => { if (!editingTaskName.trim() && !task.description && !(task.BT_attachments?.length)) { permanentlyDeleteTask(task.id); } else { updateTask(task.id, { name: editingTaskName.trim() || task.name }); } setEditingTaskId(null); }}
                       className="flex-1 outline-none bg-transparent border-b border-[#4573D9] text-[#151B26]" onClick={e => e.stopPropagation()} />
                   ) : (
                     <>
@@ -1201,6 +1255,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                 ) : (
                   <button
                     className="text-sm font-semibold text-[#151B26] hover:text-[#4573D9]"
+                    onClick={() => toggleCollapse(section.id)}
                     onDoubleClick={() => { setRenamingSection(section.id); setSectionNameDraft(section.name); }}
                   >
                     {section.name}
@@ -1250,7 +1305,14 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                       {/* Delete */}
                       <button
                         className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[#E5534B] hover:bg-[#FFF5F5]"
-                        onClick={async () => { setOpenSectionMenu(null); await deleteSection(section.id); }}
+                        onClick={() => {
+                          setOpenSectionMenu(null);
+                          setConfirmDialog({
+                            title: "Delete section?",
+                            body: `"${section.name}" will be deleted. Its tasks won't be deleted — they'll move to no section.`,
+                            action: () => deleteSection(section.id),
+                          });
+                        }}
                       >
                         <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3.5h10M5 3.5V2.5a.5.5 0 01.5-.5h3a.5.5 0 01.5.5v1M11.5 3.5l-.8 8a1 1 0 01-1 .9H4.3a1 1 0 01-1-.9l-.8-8" stroke="#E5534B" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                         Delete section
@@ -1305,9 +1367,9 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                             value={editingTaskName}
                             onChange={e => setEditingTaskName(e.target.value)}
                             onKeyDown={e => {
-                              if (e.key === "Enter" || e.key === "Escape") { e.stopPropagation(); if (!editingTaskName.trim() && !task.description && !(task.BT_attachments?.length)) { deleteTask(task.id); } else { updateTask(task.id, { name: editingTaskName.trim() || task.name }); } setEditingTaskId(null); }
+                              if (e.key === "Enter" || e.key === "Escape") { e.stopPropagation(); if (!editingTaskName.trim() && !task.description && !(task.BT_attachments?.length)) { permanentlyDeleteTask(task.id); } else { updateTask(task.id, { name: editingTaskName.trim() || task.name }); } setEditingTaskId(null); }
                             }}
-                            onBlur={() => { if (!editingTaskName.trim() && !task.description && !(task.BT_attachments?.length)) { deleteTask(task.id); } else { updateTask(task.id, { name: editingTaskName.trim() || task.name }); } setEditingTaskId(null); }}
+                            onBlur={() => { if (!editingTaskName.trim() && !task.description && !(task.BT_attachments?.length)) { permanentlyDeleteTask(task.id); } else { updateTask(task.id, { name: editingTaskName.trim() || task.name }); } setEditingTaskId(null); }}
                             className="flex-1 outline-none bg-transparent border-b border-[#4573D9] text-[#151B26]"
                             onClick={e => e.stopPropagation()}
                           />
@@ -1526,6 +1588,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
             toggleTask={toggleTask}
             duplicateTask={duplicateTask}
             deleteTask={deleteTask}
+            permanentlyDeleteTask={permanentlyDeleteTask}
             addTask={addTask}
             onOpenTask={id => { setSelectedTaskId(id); }}
             addAttachment={addAttachment}
@@ -1564,6 +1627,35 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                 className="px-4 py-2 text-sm text-white bg-[#2684FF] rounded-lg hover:bg-[#1a6fd8]"
               >
                 Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTrash && (
+        <TrashPanel
+          sections={sections}
+          onClose={() => setShowTrash(false)}
+          fetchDeletedTasks={fetchDeletedTasks}
+          restoreTask={restoreTask}
+          permanentlyDeleteTask={permanentlyDeleteTask}
+          purgeExpiredTasks={purgeExpiredTasks}
+        />
+      )}
+
+      {confirmDialog && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40" onClick={() => setConfirmDialog(null)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
+            <h2 className="text-base font-semibold text-[#151B26] mb-3">{confirmDialog.title}</h2>
+            <p className="text-sm text-[#6B6F76] leading-relaxed mb-6">{confirmDialog.body}</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setConfirmDialog(null)} className="px-4 py-2 text-sm text-[#6B6F76] border border-[#E8E8E9] rounded-lg hover:bg-[#F5F5F5]">Cancel</button>
+              <button
+                onClick={() => { const fn = confirmDialog.action; setConfirmDialog(null); fn(); }}
+                className="px-4 py-2 text-sm text-white bg-[#E5534B] rounded-lg hover:bg-[#c9463f]"
+              >
+                Delete
               </button>
             </div>
           </div>
