@@ -15,6 +15,7 @@ import type { ProjectData } from "@/hooks/useProject";
 import { useAdminSettings } from "@/lib/adminSettingsContext";
 import CustomFieldsPanel from "@/components/CustomFieldsPanel";
 import ShareTaskModal from "@/components/ShareTaskModal";
+import { openMediaAttachment } from "@/lib/mediaWindow";
 
 interface Props {
   task: Task;
@@ -742,7 +743,17 @@ export default function TaskDetailPanel({
                       : <div className="w-10 h-10 bg-[#F5F5F5] rounded flex items-center justify-center flex-shrink-0">{fileIcon(att.file_type)}</div>
                     }
                     <div className="flex-1 min-w-0">
-                      <a href={att.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-[#151B26] hover:underline truncate block">{att.name}</a>
+                      {att.file_type.startsWith("image/") || att.file_type.startsWith("video/") ? (
+                        <a
+                          href={att.url}
+                          onClick={(e) => { e.preventDefault(); openMediaAttachment(att.url); }}
+                          className="text-sm font-medium text-[#151B26] hover:underline truncate block"
+                        >
+                          {att.name}
+                        </a>
+                      ) : (
+                        <a href={att.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-[#151B26] hover:underline truncate block">{att.name}</a>
+                      )}
                       <p className="text-xs text-[#6B6F76]">{fmtBytes(att.size)}</p>
                     </div>
                     <button onClick={() => removeAttachment(att.id, task.id, att.url)} className="p-1 text-[#6B6F76] hover:text-red-500 rounded opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14} /></button>
