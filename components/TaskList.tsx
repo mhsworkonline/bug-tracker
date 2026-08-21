@@ -97,9 +97,11 @@ function fmtDate(iso: string | null | undefined) {
 function fmtDateTime(iso: string | null | undefined) {
   if (!iso) return "";
   const d = new Date(iso);
-  const h = d.getHours(), m = d.getMinutes();
-  const hh = h % 12 || 12, mm = String(m).padStart(2, "0"), ampm = h >= 12 ? "PM" : "AM";
-  return `${fmtDate(iso)}, ${hh}:${mm} ${ampm}`;
+  const h = d.getHours(), m = d.getMinutes(), s = d.getSeconds();
+  const hh = h % 12 || 12, mm = String(m).padStart(2, "0"), ss = String(s).padStart(2, "0"), ampm = h >= 12 ? "PM" : "AM";
+  // Seconds included (not just h:mm) so rows created moments apart — e.g. via paste-many-lines
+  // or a project duplicate — stay visually distinguishable when sorted by one of these columns.
+  return `${fmtDate(iso)}, ${hh}:${mm}:${ss} ${ampm}`;
 }
 
 function SortHeader({ label, sk, sortKey, sortDir, onSort, className }: {
@@ -222,7 +224,11 @@ export default function TaskList({ projectId, userEmail, initialData }: { projec
   const [sortKey, setSortKey]             = useState<SortKey>("none");
   const [sortDir, setSortDir]             = useState<"asc"|"desc">("asc");
 
+  // Shared by column-header clicks and the Sort dropdown: picking the already-active
+  // key flips direction (asc <-> desc); picking a new key sorts ascending by it;
+  // "none" (from the dropdown's "Clear sort") drops back to unsorted/position order.
   const handleColSort = (key: SortKey) => {
+    if (key === "none") { setSortKey("none"); return; }
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
     else { setSortKey(key); setSortDir("asc"); }
   };
@@ -265,6 +271,19 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
   const toggleShowCompleted = () => setShowCompletedTasks(prev => {
     const next = !prev;
     try { localStorage.setItem(`bt_showcompleted_${projectId}`, next ? "1" : "0"); } catch {}
+    return next;
+  });
+
+  // List view only: grouping tasks under section headers is the default, but it hides
+  // any task not in the section you're currently looking at. Unchecking this flattens
+  // every task (still respecting search/filter/sort) into one continuous list so they
+  // can all be sorted against each other at once. Persisted per-project like the toggle above.
+  const [showSections, setShowSections] = useState(() => {
+    try { return localStorage.getItem(`bt_showsections_${projectId}`) !== "0"; } catch { return true; }
+  });
+  const toggleShowSections = () => setShowSections(prev => {
+    const next = !prev;
+    try { localStorage.setItem(`bt_showsections_${projectId}`, next ? "1" : "0"); } catch {}
     return next;
   });
 
@@ -394,6 +413,14 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     [...sections].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })),
     [sections]);
 
+  // Flat (Show Sections off) mode still needs to tell tasks apart by section, so a
+  // Section column can label each row even though the grouped headers are gone.
+  const sectionNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    sections.forEach(s => m.set(s.id, s.name));
+    return m;
+  }, [sections]);
+
   const lastClickedRef = useRef<string | null>(null);
 
   // ESC closes task detail panel, then clears selection, then closes search.
@@ -447,24 +474,26 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
         e.preventDefault();
         const current = filteredTasks.find(t => t.id === selectedTaskId);
         if (!current) return;
-        const sectionTasks = filteredTasks.filter(t => t.section_id === current.section_id);
-        const idx = sectionTasks.findIndex(t => t.id === selectedTaskId);
+        // With sections hidden there's no section to stay within — move through the whole flat list.
+        const scope = showSections ? filteredTasks.filter(t => t.section_id === current.section_id) : filteredTasks;
+        const idx = scope.findIndex(t => t.id === selectedTaskId);
         const isDown = e.key === "j" || e.key === "J";
-        const target2 = isDown ? sectionTasks[idx + 1] : sectionTasks[idx - 1];
+        const target2 = isDown ? scope[idx + 1] : scope[idx - 1];
         if (target2) { flushPendingEdit(); setSelectedTaskId(target2.id); }
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [selectedTaskId, selectedIds, showSearch, showAddTaskMenu, openSectionMenu, showJiraMenu, filteredTasks, tasks, addTask]);
+  }, [selectedTaskId, selectedIds, showSearch, showAddTaskMenu, openSectionMenu, showJiraMenu, filteredTasks, tasks, addTask, showSections]);
 
   const orderedTaskIds = useMemo(() => {
+    if (!showSections) return filteredTasks.map(t => t.id);
     const unsectioned = filteredTasks.filter(t => !t.section_id).map(t => t.id);
     const sectioned = [...sections]
       .sort((a, b) => a.position - b.position)
       .flatMap(s => filteredTasks.filter(t => t.section_id === s.id).map(t => t.id));
     return [...unsectioned, ...sectioned];
-  }, [filteredTasks, sections]);
+  }, [filteredTasks, sections, showSections]);
 
   const toggleSelect = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -835,6 +864,17 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
             />
             Show completed{!showCompletedTasks && completedHiddenCount > 0 ? ` (${completedHiddenCount})` : ""}
           </label>
+          {activeTab === "List" && (
+            <label className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-[#6B6F76] cursor-pointer select-none whitespace-nowrap" title="Uncheck to list every task in one flat, sortable list instead of grouped by section">
+              <input
+                type="checkbox"
+                checked={showSections}
+                onChange={toggleShowSections}
+                className="w-3.5 h-3.5 accent-[#4573D9] cursor-pointer"
+              />
+              Show Sections
+            </label>
+          )}
           <div className="relative">
             <button onClick={() => { setShowFilter(v => !v); setShowSort(false); }} className={`flex items-center gap-1 px-2.5 py-1.5 text-sm rounded transition-colors ${filterActive ? "text-[#4573D9] bg-[#EEF2FB]" : "text-[#6B6F76] hover:bg-[#F5F5F5]"}`}>
               <Filter size={14} /> Filter{filterActive ? " •" : ""}
@@ -845,15 +885,19 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
             <button onClick={() => { setShowSort(v => !v); setShowFilter(false); }} className={`flex items-center gap-1 px-2.5 py-1.5 text-sm rounded transition-colors ${sortKey !== "none" ? "text-[#4573D9] bg-[#EEF2FB]" : "text-[#6B6F76] hover:bg-[#F5F5F5]"}`}>
               <ArrowUpDown size={14} /> Sort{sortKey !== "none" ? " •" : ""}
             </button>
-            {showSort && <SortDropdown current={sortKey} onChange={setSortKey} onClose={() => setShowSort(false)} />}
+            {showSort && <SortDropdown current={sortKey} dir={sortDir} onChange={handleColSort} onClose={() => setShowSort(false)} />}
           </div>
           <button className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 text-sm text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><MoreHorizontal size={14} /> Group</button>
-          <button onClick={expandAll} title="Expand all sections" className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 text-sm text-[#6B6F76] hover:bg-[#F5F5F5] rounded">
-            <ChevronsUpDown size={14} /> Expand
-          </button>
-          <button onClick={collapseAll} title="Collapse all sections" className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 text-sm text-[#6B6F76] hover:bg-[#F5F5F5] rounded">
-            <ChevronsDownUp size={14} /> Collapse
-          </button>
+          {showSections && (
+            <>
+              <button onClick={expandAll} title="Expand all sections" className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 text-sm text-[#6B6F76] hover:bg-[#F5F5F5] rounded">
+                <ChevronsUpDown size={14} /> Expand
+              </button>
+              <button onClick={collapseAll} title="Collapse all sections" className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 text-sm text-[#6B6F76] hover:bg-[#F5F5F5] rounded">
+                <ChevronsDownUp size={14} /> Collapse
+              </button>
+            </>
+          )}
           <button onClick={() => { setShowColumns(v => !v); setShowCustomize(false); setSelectedTaskId(null); }} className={`hidden sm:flex items-center gap-1 px-2.5 py-1.5 text-sm rounded transition-colors ${showColumns ? "text-[#4573D9] bg-[#EEF2FB]" : "text-[#6B6F76] hover:bg-[#F5F5F5]"}`}>
             <Settings2 size={14} /> Options
           </button>
@@ -1136,6 +1180,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
         <div className="flex items-center px-3 sm:px-6 py-2 border-b border-[#E8E8E9] sticky top-0 bg-[#FAFBFC] z-10">
           <div className="w-5 mr-2 flex-shrink-0" />
           <SortHeader label="Name"          sk="alphabetical"   sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="flex-1 border-r border-[#E8E8E9] pr-3" />
+          {!showSections && <div className="hidden sm:block w-28 text-xs font-medium text-[#6B6F76] border-r border-[#E8E8E9] pl-3">Section</div>}
           {visibleCols.includes("status")           && <SortHeader label="Status"      sk="status"        sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="hidden sm:block w-32 border-r border-[#E8E8E9] pl-3" />}
           {visibleCols.includes("assignee")         && <SortHeader label="Assignee"    sk="assignee"      sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="hidden sm:block w-28 border-r border-[#E8E8E9] pl-3" />}
           {visibleCols.includes("due_date")         && <SortHeader label="Due date"    sk="dueDate"       sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="hidden sm:block w-28 border-r border-[#E8E8E9] pl-3" />}
@@ -1144,7 +1189,11 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
           {visibleCols.includes("created_on")       && <SortHeader label="Created on"  sk="createdAt"     sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="hidden sm:block w-40 border-r border-[#E8E8E9] pl-3" />}
           {visibleCols.includes("last_modified_on") && <SortHeader label="Last modified" sk="lastModifiedAt" sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="hidden sm:block w-40 border-r border-[#E8E8E9] pl-3" />}
           {visibleCols.includes("completed_on")     && <SortHeader label="Completed on" sk="completedAt"  sortKey={sortKey} sortDir={sortDir} onSort={handleColSort} className="hidden sm:block w-40 border-r border-[#E8E8E9] pl-3" />}
-          <div className="w-8 text-xs text-[#4573D9] cursor-pointer hidden sm:block">+</div>
+          <button
+            onClick={() => { setShowColumns(v => !v); setShowCustomize(false); setSelectedTaskId(null); }}
+            title="Add/remove columns"
+            className="w-8 text-xs text-[#4573D9] cursor-pointer hidden sm:block"
+          >+</button>
         </div>
 
         {/* Filter/search info bar */}
@@ -1155,6 +1204,96 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
           </div>
         )}
 
+        {!showSections ? (
+          <>
+            {/* Flat task list — sections hidden, filteredTasks is already sorted/filtered as one set */}
+            {filteredTasks.map(task => {
+              const isSelected = selectedIds.has(task.id);
+              return (
+                <div
+                  key={task.id}
+                  className={`flex items-center px-3 sm:px-6 py-1 border-b border-[#E8E8E9] hover:bg-[#F5F5F5] group cursor-default ${selectedTaskId === task.id || isSelected ? "bg-[#F5F5F5]" : ""}`}
+                  onClick={() => { setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }}
+                >
+                  <div
+                    onClick={e => toggleSelect(task.id, e)}
+                    className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 mr-2 transition-colors cursor-pointer ${
+                      isSelected ? "bg-[#4573D9] border-[#4573D9]" : task.completed ? "bg-[#14A454] border-[#14A454]" : "border-[#B0B3B8] hover:border-[#4573D9] group-hover:border-[#4573D9]"
+                    }`}
+                  >
+                    {isSelected && <svg width="8" height="8" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="2.5" fill="white" /></svg>}
+                    {!isSelected && task.completed && <svg width="8" height="8" viewBox="0 0 10 10" fill="none"><path d="M2 5.5L4.2 7.5L8 3" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                  </div>
+                  <div className="flex-1 text-sm min-w-0 py-1 flex items-center sm:border-r border-[#E8E8E9]">
+                    <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-0.5 cursor-pointer pr-1" onClick={() => { setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }}>
+                      {editingTaskId === task.id ? (
+                        <input
+                          autoFocus
+                          value={editingTaskName}
+                          onChange={e => setEditingTaskName(e.target.value)}
+                          onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") { e.stopPropagation(); if (!editingTaskName.trim() && !task.description && !(task.BT_attachments?.length)) { permanentlyDeleteTask(task.id); } else { updateTask(task.id, { name: editingTaskName.trim() || task.name }); } setEditingTaskId(null); } }}
+                          onBlur={() => { if (!editingTaskName.trim() && !task.description && !(task.BT_attachments?.length)) { permanentlyDeleteTask(task.id); } else { updateTask(task.id, { name: editingTaskName.trim() || task.name }); } setEditingTaskId(null); }}
+                          className="flex-1 outline-none bg-transparent border-b border-[#4573D9] text-[#151B26]"
+                          onClick={e => e.stopPropagation()}
+                        />
+                      ) : (
+                        <>
+                          <span className={`min-w-0 truncate cursor-text flex items-center gap-1 ${task.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`} onClick={e => { e.stopPropagation(); handleNameClick(task); }}>
+                            {task.is_milestone && <span className="text-amber-500 text-[10px] flex-shrink-0">◆</span>}
+                            {task.name}
+                            {task.jira_has_updates && <span title="Updated in Jira — open to review" className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0 inline-block" />}
+                          </span>
+                          {(task.BT_attachments?.length ?? 0) > 0 && <span className="text-xs text-[#6B6F76] shrink-0" onClick={e => e.stopPropagation()}>📎 {task.BT_attachments!.length}</span>}
+                          <span className="sm:hidden text-[10px] text-[#6B6F76] bg-[#F3F4F6] px-1.5 py-0.5 rounded w-fit">{sectionNameById.get(task.section_id ?? "") ?? "No section"} · {task.status?.replace(/_/g," ")}</span>
+                        </>
+                      )}
+                    </div>
+                    <button
+                      className="flex-shrink-0 p-2 -m-1 mr-1 text-[#B0B3B8] hover:text-[#4573D9] hover:bg-[#EEF2FB] rounded sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                      onClick={e => { e.stopPropagation(); setSelectedTaskId(task.id); setShowCustomize(false); setShowColumns(false); }}
+                      title="Open detail"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+                  <div className="hidden sm:block w-28 border-r border-[#E8E8E9] pl-3 truncate">
+                    <span className="text-xs text-[#6B6F76]">{sectionNameById.get(task.section_id ?? "") ?? "No section"}</span>
+                  </div>
+                  {visibleCols.includes("status") && <div className="hidden sm:block w-32 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}><StatusBadge compact value={task.status} onChange={v => updateTaskOrBulk(task.id, { status: v })} /></div>}
+                  {visibleCols.includes("assignee") && (
+                    <div className="hidden sm:block w-28 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}>
+                      <select value={task.assignee ?? ""} onChange={e => updateTaskOrBulk(task.id, { assignee: e.target.value || null })} className="w-full text-xs text-[#151B26] bg-transparent border-0 outline-none cursor-pointer hover:bg-[#F5F5F5] rounded px-1 py-0.5">
+                        <option value="">Unassigned</option>
+                        {members.map(m => <option key={m.id} value={m.email}>{m.name ?? m.email}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  {visibleCols.includes("due_date") && (
+                    <div className="hidden sm:block w-28 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}>
+                      <div className="relative inline-flex items-center gap-1 cursor-pointer">
+                        {task.due_date && <span className="text-xs text-[#6B6F76]">{fmtDate(task.due_date)}</span>}
+                        <div className={`relative ${task.due_date ? "" : "opacity-0 group-hover:opacity-100"}`}>
+                          <Calendar size={13} className="text-[#6B6F76]" />
+                          <input type="date" className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={task.due_date ?? ""} onChange={e => updateTaskOrBulk(task.id, { due_date: e.target.value || null })} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {visibleCols.includes("priority") && <div className="hidden sm:block w-32 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}><PriorityBadge compact value={task.priority ?? "high"} onChange={v => updateTaskOrBulk(task.id, { priority: v })} disabled={lockPriorities && !isAdmin} /></div>}
+                  {visibleCols.includes("task_type") && <div className="hidden sm:block w-32 border-r border-[#E8E8E9] pl-3" onClick={e => e.stopPropagation()}><TaskTypeBadge compact value={task.task_type ?? "bug"} onChange={v => updateTaskOrBulk(task.id, { task_type: v })} /></div>}
+                  {visibleCols.includes("created_on") && <div className="hidden sm:block w-40 border-r border-[#E8E8E9] pl-3"><span className="text-xs text-[#6B6F76]">{fmtDateTime(task.created_at)}</span></div>}
+                  {visibleCols.includes("last_modified_on") && <div className="hidden sm:block w-40 border-r border-[#E8E8E9] pl-3"><span className="text-xs text-[#6B6F76]">{fmtDateTime(task.updated_at)}</span></div>}
+                  {visibleCols.includes("completed_on") && <div className="hidden sm:block w-40 border-r border-[#E8E8E9] pl-3"><span className="text-xs text-[#6B6F76]">{fmtDateTime(task.completed_at)}</span></div>}
+                  <div className="w-8 hidden sm:block" />
+                </div>
+              );
+            })}
+            {filteredTasks.length === 0 && (
+              <div className="px-6 py-10 text-center text-sm text-[#9EA3AA]">No tasks match.</div>
+            )}
+          </>
+        ) : (
+        <>
         {/* Unsectioned tasks */}
         {filteredTasks.filter(t => !t.section_id).map(task => {
           const isSelected = selectedIds.has(task.id);
@@ -1538,6 +1677,8 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
             <Plus size={14} /> Add multiple sections
           </button>
         </div>
+        </>
+        )}
       </div>}
 
       {/* Bulk add sections modal */}

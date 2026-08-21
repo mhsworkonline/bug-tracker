@@ -64,10 +64,15 @@ export async function POST(req: NextRequest) {
       endpoint: `https://${cf.account_id}.r2.cloudflarestorage.com`,
       credentials: { accessKeyId: cf.access_key_id, secretAccessKey: cf.secret_access_key },
     });
+    // 5 minutes was only enough for the presigned PUT to *start*, not finish — a large
+    // video on a slow/typical upload connection can easily take longer than that to
+    // transfer, so R2 aborts the connection once the signature window closes and the
+    // browser surfaces it as a bare "Failed to fetch" (no HTTP response to read an
+    // error from). An hour comfortably covers big files while still expiring same-session.
     const upload_url = await getSignedUrl(
       client,
       new PutObjectCommand({ Bucket: cf.bucket, Key: key, ContentType: content_type }),
-      { expiresIn: 300 }
+      { expiresIn: 3600 }
     );
     return NextResponse.json({
       provider: "cloudflare",

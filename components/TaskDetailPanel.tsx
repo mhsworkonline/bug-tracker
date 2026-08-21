@@ -320,8 +320,16 @@ export default function TaskDetailPanel({
           url = data.secure_url;
 
         } else if (cfg.provider === "cloudflare") {
-          // Direct browser → R2 via presigned PUT
-          const res = await fetch(cfg.upload_url, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+          // Direct browser → R2 via presigned PUT. On a large file (video) over a slow
+          // connection, the PUT itself can fail at the network level rather than coming
+          // back with an HTTP error — fetch() throws a bare "Failed to fetch" for that,
+          // which isn't something a user can act on, so give it a clearer message here.
+          let res: Response;
+          try {
+            res = await fetch(cfg.upload_url, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+          } catch {
+            throw new Error(`Upload of "${file.name}" was interrupted partway through — check your connection and try again.`);
+          }
           if (!res.ok) throw new Error("R2 upload failed");
           url = cfg.public_url;
 
