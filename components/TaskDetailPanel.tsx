@@ -746,7 +746,7 @@ export default function TaskDetailPanel({
                       {att.file_type.startsWith("image/") || att.file_type.startsWith("video/") ? (
                         <a
                           href={att.url}
-                          onClick={(e) => { e.preventDefault(); openMediaAttachment(att.url); }}
+                          onClick={(e) => { e.preventDefault(); openMediaAttachment(att.url, att.name, att.file_type); }}
                           className="text-sm font-medium text-[#151B26] hover:underline truncate block"
                         >
                           {att.name}

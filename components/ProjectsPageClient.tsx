@@ -30,7 +30,7 @@ export default function ProjectsPageClient({ isAdmin, userEmail, allowedProjectI
 
   const canExport = isAdmin || membersCanExportExcel;
 
-  const [sort, setSort] = useState<ProjectSort | null>(null);
+  const [sort, setSort] = useState<ProjectSort | null>({ column: "updated_at", direction: "desc" });
 
   const visible = projects.filter(p => {
     if (!isAdmin && p.is_active === false) return false;
