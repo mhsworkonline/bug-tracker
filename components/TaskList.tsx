@@ -738,7 +738,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
         <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
           <div className="flex items-center gap-1 sm:gap-2">
             {isAdmin ? (
-              <Link href="/projects" title={userEmail} className="w-7 h-7 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold hover:opacity-80">{userInitials}</Link>
+              <Link href="/admin" title={userEmail} className="w-7 h-7 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold hover:opacity-80">{userInitials}</Link>
             ) : (
               <div title={userEmail} className="w-7 h-7 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold cursor-default">{userInitials}</div>
             )}

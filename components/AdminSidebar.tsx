@@ -61,18 +61,8 @@ export default function AdminSidebar({ open, onClose }: Props) {
       >
       <nav className="flex flex-col gap-0.5 p-3 flex-1">
 
-        {/* Back */}
-        <Link
-          href="/projects"
-          onClick={onClose}
-          className="flex items-center gap-2 px-3 py-2 text-xs text-[#9EA3AA] hover:text-[#6B6F76] mb-1"
-        >
-          <FolderOpen size={13} /> Browse projects
-        </Link>
-
-        <div className="my-1 border-t border-[#F0F1F3]" />
-
-        {navItem("/admin", <LayoutDashboard size={15} />, "Overview", true)}
+        {navItem("/admin", <FolderOpen size={15} />, "Browse Projects", true)}
+        {navItem("/admin/overview", <LayoutDashboard size={15} />, "Overview")}
         {navItem("/admin/users", <Users size={15} />, "Members")}
         {navItem("/admin/permissions", <Lock size={15} />, "Permissions")}
         {navItem("/admin/activity", <Activity size={15} />, "Activity Log")}

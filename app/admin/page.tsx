@@ -1,28 +1,23 @@
-import { supabase } from "@/lib/supabase";
-import AdminDashboardClient, { type AdminDashboardRaw } from "./AdminDashboardClient";
+import { getUser } from "@/lib/auth-server";
+import { ADMIN_EMAIL } from "@/lib/constants";
+import { createClient } from "@supabase/supabase-js";
+import ProjectsPageClient from "@/components/ProjectsPageClient";
 
-// This page has no cookies()/auth call of its own, so Next has no signal to render it
-// per-request — without this it gets statically frozen to whatever the stats were at
-// build time. Force it dynamic so every visit gets a fresh snapshot.
-export const dynamic = "force-dynamic";
+// Admin's default landing page — "Browse projects" inside the admin shell.
+export default async function AdminBrowseProjectsPage() {
+  const user = await getUser();
+  const isAdmin = user?.email === ADMIN_EMAIL;
 
-const sevenDaysAgoISO = () => new Date(Date.now() - 7 * 86400000).toISOString();
+  let allowedProjectIds: string[] | null = null;
+  if (!isAdmin && user) {
+    const sb = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    );
+    const { data } = await sb.from("BT_project_members").select("project_id").eq("user_id", user.id);
+    allowedProjectIds = (data ?? []).map((r: { project_id: string }) => r.project_id);
+  }
 
-export default async function AdminDashboard() {
-  const [projRes, taskRes, logRes] = await Promise.all([
-    supabase.from("BT_projects").select("id, name"),
-    supabase.from("BT_tasks").select("id, status, completed, due_date, project_id").is("deleted_at", null),
-    supabase.from("BT_activity_logs")
-      .select("created_at")
-      .gte("created_at", sevenDaysAgoISO())
-      .order("created_at"),
-  ]);
-
-  const raw: AdminDashboardRaw = {
-    projects: projRes.data ?? [],
-    tasks: taskRes.data ?? [],
-    logs: logRes.data ?? [],
-  };
-
-  return <AdminDashboardClient raw={raw} />;
+  return <ProjectsPageClient isAdmin={isAdmin} userEmail={user?.email} allowedProjectIds={allowedProjectIds} embedded />;
 }
