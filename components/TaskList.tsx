@@ -1241,12 +1241,12 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                         />
                       ) : (
                         <>
-                          <span className={`min-w-0 truncate cursor-text flex items-center gap-1 ${task.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`} onClick={e => { e.stopPropagation(); handleNameClick(task); }}>
+                          <span className={`min-w-0 truncate cursor-text flex items-center gap-1 ${task.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`} onClick={e => { if (window.innerWidth < 640) return; e.stopPropagation(); handleNameClick(task); }}>
                             {task.is_milestone && <span className="text-amber-500 text-[10px] flex-shrink-0">◆</span>}
                             {task.name}
                             {task.jira_has_updates && <span title="Updated in Jira — open to review" className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0 inline-block" />}
                           </span>
-                          {(task.BT_attachments?.length ?? 0) > 0 && <span className="text-xs text-[#6B6F76] shrink-0" onClick={e => e.stopPropagation()}>📎 {task.BT_attachments!.length}</span>}
+                          {(task.BT_attachments?.length ?? 0) > 0 && <span className="text-xs text-[#6B6F76] shrink-0" onClick={e => { if (window.innerWidth >= 640) e.stopPropagation(); }}>📎 {task.BT_attachments!.length}</span>}
                           <span className="sm:hidden text-[10px] text-[#6B6F76] bg-[#F3F4F6] px-1.5 py-0.5 rounded w-fit">{sectionNameById.get(task.section_id ?? "") ?? "No section"} · {task.status?.replace(/_/g," ")}</span>
                         </>
                       )}
@@ -1319,7 +1319,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                   ) : (
                     <>
                       <span className={`min-w-0 truncate cursor-text flex items-center gap-1 ${task.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`}
-                        onClick={e => { e.stopPropagation(); handleNameClick(task); }}>
+                        onClick={e => { if (window.innerWidth < 640) return; e.stopPropagation(); handleNameClick(task); }}>
                         {task.is_milestone && <span className="text-amber-500 text-[10px] flex-shrink-0">◆</span>}
                         {task.name}
                         {task.jira_has_updates && <span title="Updated in Jira — open to review" className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0 inline-block" />}
@@ -1519,13 +1519,13 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                           <>
                             <span
                               className={`min-w-0 truncate cursor-text flex items-center gap-1 ${task.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`}
-                              onClick={e => { e.stopPropagation(); handleNameClick(task); }}
+                              onClick={e => { if (window.innerWidth < 640) return; e.stopPropagation(); handleNameClick(task); }}
                             >
                               {task.name}
                               {task.jira_has_updates && <span title="Updated in Jira — open to review" className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0 inline-block" />}
                             </span>
                             {(task.BT_attachments?.length ?? 0) > 0 && (
-                              <span className="text-xs text-[#6B6F76] shrink-0" onClick={e => e.stopPropagation()}>📎 {task.BT_attachments!.length}</span>
+                              <span className="text-xs text-[#6B6F76] shrink-0" onClick={e => { if (window.innerWidth >= 640) e.stopPropagation(); }}>📎 {task.BT_attachments!.length}</span>
                             )}
                             <span className="sm:hidden text-[10px] text-[#6B6F76] bg-[#F3F4F6] px-1.5 py-0.5 rounded w-fit">{task.status?.replace(/_/g," ")}</span>
                           </>
