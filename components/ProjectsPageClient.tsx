@@ -7,8 +7,8 @@ import { useStore } from "@/lib/store";
 import ProjectsTable, { type ProjectSort, type SortableColumn } from "@/components/ProjectsTable";
 import { createSupabaseBrowser } from "@/lib/auth-browser";
 import { useAdminSettings } from "@/lib/adminSettingsContext";
-import { exportProjectsToExcel } from "@/lib/exportUtils";
-import { fetchProjectsExportData } from "@/lib/fetchProjectExportData";
+import { exportProjectsToExcel, exportProjectsToExcelAttachmentsOnly } from "@/lib/exportUtils";
+import { fetchProjectsExportData, type ProjectExportData } from "@/lib/fetchProjectExportData";
 import { searchTasksAcrossProjects, type TaskSearchHit } from "@/lib/searchAcrossProjects";
 
 interface Props {
@@ -21,12 +21,14 @@ interface Props {
 
 export default function ProjectsPageClient({ isAdmin, userEmail, allowedProjectIds, embedded = false }: Props) {
   const router = useRouter();
-  const { projects, loading } = useStore();
+  const { projects, loading, updateProject } = useStore();
   const { taskTypes, membersCanExportExcel, statusByKey } = useAdminSettings();
   const [query, setQuery] = useState("");
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [sinceLastExport, setSinceLastExport] = useState(false);
   const [taskResults, setTaskResults] = useState<TaskSearchHit[]>([]);
   const [searchingTasks, setSearchingTasks] = useState(false);
 
@@ -84,13 +86,51 @@ export default function ProjectsPageClient({ isAdmin, userEmail, allowedProjectI
     });
   };
 
-  const handleBulkExport = async () => {
+  const handleBulkExport = async (attachmentsOnly: boolean) => {
     const selectedProjects = visible.filter(p => selected.has(p.id));
     if (!selectedProjects.length) return;
+    setShowExportMenu(false);
     setExporting(true);
     try {
       const dataByProject = await fetchProjectsExportData(selectedProjects.map(p => p.id));
-      await exportProjectsToExcel(selectedProjects, dataByProject, taskTypes);
+
+      let exportProjects = selectedProjects;
+      let exportData = dataByProject;
+
+      // "Since last report" mirrors the per-project delta export: only tasks changed after that
+      // project's own last_excel_export_at go in, and a project with nothing new is dropped from
+      // the workbook entirely rather than shipping an empty tab. A project never exported before
+      // has no baseline yet, so its first delta export is everything (same as the single-project flow).
+      if (sinceLastExport) {
+        const filtered = new Map<string, ProjectExportData>();
+        for (const project of selectedProjects) {
+          const data  = dataByProject.get(project.id) ?? { sections: [], tasks: [] };
+          const since = project.last_excel_export_at ? new Date(project.last_excel_export_at) : null;
+          const tasks = since ? data.tasks.filter(t => new Date(t.updated_at) > since) : data.tasks;
+          if (tasks.length) filtered.set(project.id, { sections: data.sections, tasks });
+        }
+        exportProjects = selectedProjects.filter(p => filtered.has(p.id));
+        exportData = filtered;
+        if (!exportProjects.length) {
+          alert("No new or changed tasks in any selected project since the last report.");
+          return;
+        }
+      }
+
+      if (attachmentsOnly) {
+        await exportProjectsToExcelAttachmentsOnly(exportProjects, exportData);
+      } else {
+        await exportProjectsToExcel(exportProjects, exportData, taskTypes);
+      }
+
+      // Advance the "since last report" baseline for every project actually included.
+      const now = new Date().toISOString();
+      const { supabase } = await import("@/lib/supabase");
+      await Promise.all(exportProjects.map(async p => {
+        await supabase.from("BT_projects").update({ last_excel_export_at: now }).eq("id", p.id);
+        updateProject({ ...p, last_excel_export_at: now });
+      }));
+
       exitSelectMode();
     } finally {
       setExporting(false);
@@ -199,14 +239,48 @@ export default function ProjectsPageClient({ isAdmin, userEmail, allowedProjectI
           <button onClick={exitSelectMode} disabled={exporting} className="px-3 sm:px-4 py-2 text-sm text-[#6B6F76] hover:bg-[#F5F5F5] rounded-md disabled:opacity-50">
             Cancel
           </button>
-          <button
-            onClick={handleBulkExport}
-            disabled={exporting}
-            className="flex items-center gap-1.5 px-3 sm:px-4 py-2 bg-[#4573D9] text-white text-sm rounded-md hover:bg-[#3F65C4] disabled:opacity-60"
-          >
-            {exporting ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={14} />}
-            {exporting ? "Exporting…" : `Export ${selected.size}`}
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowExportMenu(v => !v)}
+              disabled={exporting}
+              className="flex items-center gap-1.5 px-3 sm:px-4 py-2 bg-[#4573D9] text-white text-sm rounded-md hover:bg-[#3F65C4] disabled:opacity-60"
+            >
+              {exporting ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={14} />}
+              {exporting ? "Exporting…" : `Export ${selected.size}`}
+            </button>
+            {showExportMenu && !exporting && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowExportMenu(false)} />
+                <div className="absolute right-0 bottom-full mb-1 bg-white border border-[#E8E8E9] rounded-[8px] shadow-lg py-1 w-64 z-50">
+                  <label
+                    className="flex items-start gap-2 px-4 py-2 text-xs text-[#151B26] cursor-pointer select-none border-b border-[#F0F1F3]"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={sinceLastExport}
+                      onChange={e => setSinceLastExport(e.target.checked)}
+                      className="w-3.5 h-3.5 mt-0.5 accent-[#4573D9] cursor-pointer flex-shrink-0"
+                    />
+                    <span>
+                      Only new/changed tasks
+                      <span className="block text-[10px] text-[#9EA3AA]">Since each project&apos;s last report</span>
+                    </span>
+                  </label>
+                  <button onClick={() => handleBulkExport(false)}
+                    className="w-full flex flex-col items-start gap-0.5 px-4 py-2 text-left hover:bg-[#FAFBFC]">
+                    <span className="text-sm text-[#151B26]">Full report</span>
+                    <span className="text-[11px] text-[#9EA3AA]">All columns, one tab per project</span>
+                  </button>
+                  <button onClick={() => handleBulkExport(true)}
+                    className="w-full flex flex-col items-start gap-0.5 px-4 py-2 text-left hover:bg-[#FAFBFC]">
+                    <span className="text-sm text-[#151B26]">Attachments only</span>
+                    <span className="text-[11px] text-[#9EA3AA]">Trimmed — Section, Task Name, Attachments</span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>

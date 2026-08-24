@@ -369,7 +369,7 @@ export async function exportToExcelAttachmentsOnly(project: Project, sections: S
 
   const ws = buildAttachmentsOnlySheet(XLSX, project, sections, tasks);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Attachments");
+  XLSX.utils.book_append_sheet(wb, ws, safeSheetName(project.name, new Set()));
   await freezeHeaderRowAndDownload(XLSX, wb, `${project.name}-attachments.xlsx`);
 }
 
@@ -402,7 +402,7 @@ export async function exportToExcel(project: Project, sections: Section[], tasks
 
   const ws = buildProjectSheet(XLSX, project, sections, tasks, taskTypes);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Tasks");
+  XLSX.utils.book_append_sheet(wb, ws, safeSheetName(project.name, new Set()));
   await freezeHeaderRowAndDownload(XLSX, wb, `${project.name}-tasks.xlsx`);
 }
 
@@ -426,6 +426,28 @@ export async function exportProjectsToExcel(
 
   const stamp = new Date().toISOString().slice(0, 10);
   await freezeHeaderRowAndDownload(XLSX, wb, `bug-tracker-export-${stamp}.xlsx`);
+}
+
+// Trimmed multi-project export: one tab per selected project, each built via buildAttachmentsOnlySheet
+// (S.No., Section, Task Name, Attachment 1, Attachment 2 — sorted by Section). Mirrors exportProjectsToExcel.
+export async function exportProjectsToExcelAttachmentsOnly(
+  projects: Project[],
+  dataByProject: Map<string, { sections: Section[]; tasks: Task[] }>,
+) {
+  if (!projects.length) { alert("No projects selected."); return; }
+  const XLSX = await import("xlsx-js-style");
+
+  const wb = XLSX.utils.book_new();
+  const usedNames = new Set<string>();
+  for (const project of projects) {
+    const data = dataByProject.get(project.id) ?? { sections: [], tasks: [] };
+    const ws = buildAttachmentsOnlySheet(XLSX, project, data.sections, data.tasks);
+    const sheetName = safeSheetName(project.name, usedNames);
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  }
+
+  const stamp = new Date().toISOString().slice(0, 10);
+  await freezeHeaderRowAndDownload(XLSX, wb, `bug-tracker-export-attachments-${stamp}.xlsx`);
 }
 
 export async function exportToPDF(project: Project, sections: Section[], tasks: Task[], taskTypes: TaskTypeOption[]) {

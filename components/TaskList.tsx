@@ -544,7 +544,10 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
 
   const commitNewTask = async (sectionId: string) => {
     const name = newTaskName.trim();
-    await addTask(sectionId, name, newTaskDueDate || undefined);
+    // Blank tasks must never land in the list — this fires on blur (clicking away commits
+    // "nothing typed" just as much as pressing Enter does), so without this guard every
+    // abandoned "Add task..." row would insert an empty task into the section.
+    if (name) await addTask(sectionId, name, newTaskDueDate || undefined);
     setNewTaskName(""); setNewTaskDueDate(""); setAddingIn(null);
   };
 
