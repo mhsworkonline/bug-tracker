@@ -767,8 +767,9 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
         <button className="px-3 py-2.5 text-sm text-[#6B6F76] hover:text-[#151B26]">+</button>
       </div>
 
-      {/* Toolbar */}
-      <div className="flex items-center justify-between px-3 sm:px-6 py-2 bg-white border-b border-[#E8E8E9] flex-shrink-0 gap-3">
+      {/* Toolbar — can run wider than a phone screen once every control is visible, so it
+          scrolls within itself (like the Tabs row above) instead of pushing the whole page. */}
+      <div className="flex items-center justify-between px-3 sm:px-6 py-2 bg-white border-b border-[#E8E8E9] flex-shrink-0 gap-3 overflow-x-auto">
         {/* Add task split button */}
         <div className="relative flex items-center flex-shrink-0">
           <div className="flex items-center border border-[#D0D2D6] rounded-md">
@@ -893,10 +894,10 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
           <button className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 text-sm text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><MoreHorizontal size={14} /> Group</button>
           {showSections && (
             <>
-              <button onClick={expandAll} title="Expand all sections" className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 text-sm text-[#6B6F76] hover:bg-[#F5F5F5] rounded">
+              <button onClick={expandAll} title="Expand all sections" className="flex items-center gap-1 px-2.5 py-1.5 text-sm text-[#6B6F76] hover:bg-[#F5F5F5] rounded flex-shrink-0 whitespace-nowrap">
                 <ChevronsUpDown size={14} /> Expand
               </button>
-              <button onClick={collapseAll} title="Collapse all sections" className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 text-sm text-[#6B6F76] hover:bg-[#F5F5F5] rounded">
+              <button onClick={collapseAll} title="Collapse all sections" className="flex items-center gap-1 px-2.5 py-1.5 text-sm text-[#6B6F76] hover:bg-[#F5F5F5] rounded flex-shrink-0 whitespace-nowrap">
                 <ChevronsDownUp size={14} /> Collapse
               </button>
             </>

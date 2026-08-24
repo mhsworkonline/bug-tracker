@@ -26,6 +26,14 @@
   to   { transform: translateX(0); }
 }
 
+html, body {
+  /* A single row that overflows its container (a crowded mobile toolbar, for example)
+     would otherwise widen the whole document and let the page itself pan sideways —
+     the page should only ever scroll vertically; an overflowing row scrolls within
+     itself instead (see the toolbar's own overflow-x-auto in TaskList). */
+  overflow-x: hidden;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   color: #151B26;

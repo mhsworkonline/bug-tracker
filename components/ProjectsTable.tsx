@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowUp, ArrowDown, ArrowUpDown, Archive, RotateCcw, Settings } from "lucide-react";
 import type { Project } from "@/lib/data";
 import { useStore } from "@/lib/store";
@@ -96,6 +97,8 @@ function RowMenu({ project }: { project: Project }) {
 }
 
 export default function ProjectsTable({ projects, isAdmin, selectMode, selected, onToggleSelect, sort, onSort }: Props) {
+  const router = useRouter();
+
   if (projects.length === 0) {
     return (
       <div className="border border-[#E8E8E9] rounded-[6px] px-6 py-12 text-center text-sm text-[#6B6F76]">
@@ -133,10 +136,10 @@ export default function ProjectsTable({ projects, isAdmin, selectMode, selected,
       {projects.map((p, i) => (
         <div
           key={p.id}
-          onClick={selectMode ? () => onToggleSelect?.(p.id) : undefined}
-          className={`flex items-center px-4 py-3 hover:bg-[#FAFBFC] transition-colors ${
+          onClick={() => { if (selectMode) onToggleSelect?.(p.id); else router.push(`/projects/${p.id}`); }}
+          className={`flex items-center px-4 py-3 hover:bg-[#FAFBFC] transition-colors cursor-pointer ${
             i < projects.length - 1 ? "border-b border-[#E8E8E9]" : ""
-          } ${!p.is_active ? "opacity-60" : ""} ${selectMode ? "cursor-pointer" : ""}`}
+          } ${!p.is_active ? "opacity-60" : ""}`}
         >
           {selectMode && (
             <input
@@ -158,7 +161,7 @@ export default function ProjectsTable({ projects, isAdmin, selectMode, selected,
             <div className="min-w-0">
               <Link
                 href={`/projects/${p.id}`}
-                onClick={selectMode ? (e) => { e.preventDefault(); onToggleSelect?.(p.id); } : undefined}
+                onClick={e => { e.stopPropagation(); if (selectMode) { e.preventDefault(); onToggleSelect?.(p.id); } }}
                 className="text-sm font-semibold text-[#151B26] hover:underline truncate block"
               >
                 {p.name}
