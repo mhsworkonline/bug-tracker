@@ -4,6 +4,7 @@ import { X, Loader2, RotateCcw, Trash2 } from "lucide-react";
 import type { Task, Section } from "@/lib/data";
 import type { ProjectData } from "@/hooks/useProject";
 import { useAdminSettings } from "@/lib/adminSettingsContext";
+import Sheet from "@/components/Sheet";
 
 interface Props {
   sections: Section[];
@@ -52,15 +53,14 @@ export default function TrashPanel({ sections, onClose, fetchDeletedTasks, resto
   };
 
   return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-[560px] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#E8E8E9]">
-          <div>
-            <h2 className="text-base font-semibold text-[#151B26]">Trash</h2>
-            <p className="text-xs text-[#B0B3B8] mt-0.5">Deleted tasks are kept for {taskTrashRetentionDays} days before being removed for good.</p>
-          </div>
-          <button onClick={onClose} className="p-1 text-[#6B6F76] hover:bg-[#F5F5F5] rounded flex-shrink-0"><X size={16} /></button>
+    <Sheet onClose={onClose} maxWidth="max-w-[560px]">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-[#E8E8E9] flex-shrink-0">
+        <div>
+          <h2 className="text-base font-semibold text-[#151B26]">Trash</h2>
+          <p className="text-xs text-[#B0B3B8] mt-0.5">Deleted tasks are kept for {taskTrashRetentionDays} days before being removed for good.</p>
         </div>
+        <button onClick={onClose} className="p-1 text-[#6B6F76] hover:bg-[#F5F5F5] rounded flex-shrink-0"><X size={16} /></button>
+      </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-2">
           {loading ? (
@@ -108,7 +108,6 @@ export default function TrashPanel({ sections, onClose, fetchDeletedTasks, resto
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }

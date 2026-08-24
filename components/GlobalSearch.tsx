@@ -63,6 +63,14 @@ export default function GlobalSearch() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
+  // MobileTabBar's Search tab has no direct handle on this component (it's mounted once,
+  // globally, in Providers) — it opens this the same way Cmd/Ctrl+K does, via a DOM event.
+  useEffect(() => {
+    const openHandler = () => setOpen(true);
+    window.addEventListener("bt-open-search", openHandler);
+    return () => window.removeEventListener("bt-open-search", openHandler);
+  }, []);
+
   useEffect(() => {
     if (open) { setTimeout(() => inputRef.current?.focus(), 50); setQuery(""); setResults([]); setCursor(0); }
   }, [open]);
@@ -121,17 +129,17 @@ export default function GlobalSearch() {
     listRef.current?.children[cursor]?.scrollIntoView({ block: "nearest" });
   }, [cursor]);
 
-  // Floating trigger — fixed so it stays reachable on every page, including mobile (icon-only there).
+  // Floating trigger — desktop/tablet only; on mobile MobileTabBar's Search tab is the
+  // entry point instead (it dispatches "bt-open-search", handled above).
   if (!open) return (
     <button
       onClick={() => setOpen(true)}
-      className="fixed bottom-4 right-4 z-[150] flex items-center gap-2 px-3 py-2.5 sm:py-1.5 bg-white sm:bg-[#F5F5F5] border border-[#E8E8E9] rounded-full sm:rounded-lg shadow-lg sm:shadow-none text-sm text-[#6B6F76] hover:bg-[#EFEFEF] transition-colors"
+      className="hidden md:flex fixed bottom-4 right-4 z-[150] items-center gap-2 px-3 py-1.5 bg-[#F5F5F5] border border-[#E8E8E9] rounded-lg text-sm text-[#6B6F76] hover:bg-[#EFEFEF] transition-colors"
       title="Search (Ctrl+K)"
     >
-      <Search size={15} className="sm:hidden" />
-      <Search size={13} className="hidden sm:block" />
-      <span className="hidden sm:inline">Search</span>
-      <kbd className="hidden sm:inline text-[10px] bg-white border border-[#E8E8E9] px-1 rounded ml-1">⌘K</kbd>
+      <Search size={13} />
+      <span>Search</span>
+      <kbd className="text-[10px] bg-white border border-[#E8E8E9] px-1 rounded ml-1">⌘K</kbd>
     </button>
   );
 

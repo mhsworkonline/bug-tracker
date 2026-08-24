@@ -24,8 +24,8 @@ export default function InstallPrompt() {
 
   return (
     <div
-      className="fixed bottom-0 inset-x-0 z-[200] bg-[#151B26] text-white text-sm px-4 py-3 flex items-center gap-3"
-      style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
+      className="fixed inset-x-0 bottom-[calc(var(--bt-tabbar-h)+env(safe-area-inset-bottom))] md:bottom-0 z-[200] bg-[#151B26] text-white text-sm px-4 py-3 flex items-center gap-3"
+      style={{ paddingBottom: "0.75rem" }}
     >
       <span className="flex-1">
         Install this app: tap <Share size={14} className="inline -mt-0.5" /> then &quot;Add to Home Screen&quot;.

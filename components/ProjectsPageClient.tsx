@@ -232,7 +232,10 @@ export default function ProjectsPageClient({ isAdmin, userEmail, allowedProjectI
   );
 
   const bulkFooter = selectMode && selected.size > 0 && (
-    <div className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-[#E8E8E9] shadow-[0_-2px_8px_rgba(0,0,0,0.06)] px-4 py-3 sm:px-8" style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}>
+    <div
+      className={`fixed inset-x-0 ${embedded ? "" : "bottom-[calc(var(--bt-tabbar-h)+env(safe-area-inset-bottom))] md:bottom-0"} bg-white border-t border-[#E8E8E9] shadow-[0_-2px_8px_rgba(0,0,0,0.06)] px-4 py-3 sm:px-8 z-[125]`}
+      style={embedded ? { bottom: 0, paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" } : { paddingBottom: "0.75rem" }}
+    >
       <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
         <span className="text-sm text-[#151B26]">{selected.size} project{selected.size === 1 ? "" : "s"} selected</span>
         <div className="flex items-center gap-2">
@@ -305,7 +308,7 @@ export default function ProjectsPageClient({ isAdmin, userEmail, allowedProjectI
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className={`min-h-screen bg-white ${embedded ? "" : "pb-[calc(var(--bt-tabbar-h)+env(safe-area-inset-bottom))] md:pb-0"}`}>
       <div className={`max-w-5xl mx-auto px-4 sm:px-8 py-6 sm:py-8 ${selectMode && selected.size > 0 ? "pb-20" : ""}`}>
         <div className="flex items-center justify-between mb-6 gap-2">
           <h1 className="text-xl sm:text-2xl font-bold text-[#151B26]">Browse projects</h1>

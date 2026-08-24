@@ -26,7 +26,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   };
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className="h-screen flex flex-col pb-[calc(var(--bt-tabbar-h)+env(safe-area-inset-bottom))] md:pb-0">
       <Suspense fallback={null}>
         <TaskList projectId={id} userEmail={user?.email} initialData={initialData} />
       </Suspense>

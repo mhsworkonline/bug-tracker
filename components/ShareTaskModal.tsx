@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { X, Link, Lock, ChevronDown, Loader2, ClipboardList } from "lucide-react";
+import Sheet from "@/components/Sheet";
 
 interface Follower { id: string; user_email: string; }
 
@@ -21,18 +22,11 @@ export default function ShareTaskModal({ taskId, taskName, projectId, projectNam
   const [inviting, setInviting]   = useState(false);
   const [inviteError, setInviteError] = useState("");
   const [copied, setCopied]       = useState(false);
-  const overlayRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     supabase.from("BT_task_followers").select("id, user_email").eq("task_id", taskId)
       .then(({ data }) => setFollowers((data as Follower[]) ?? []));
   }, [taskId]);
-
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", h);
-    return () => document.removeEventListener("keydown", h);
-  }, [onClose]);
 
   const handleInvite = async () => {
     const email = invite.trim().toLowerCase();
@@ -65,16 +59,14 @@ export default function ShareTaskModal({ taskId, taskName, projectId, projectNam
   };
 
   return (
-    <div ref={overlayRef} className="fixed inset-0 bg-black/30 z-[300] flex items-center justify-center p-4"
-      onClick={e => { if (e.target === overlayRef.current) onClose(); }}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#E8E8E9]">
-          <h2 className="text-base font-semibold text-[#151B26] truncate pr-4">Share {taskName}</h2>
-          <button onClick={onClose} className="p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded flex-shrink-0"><X size={16} /></button>
-        </div>
+    <Sheet onClose={onClose} maxWidth="max-w-lg" zIndex={300}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-[#E8E8E9] flex-shrink-0">
+        <h2 className="text-base font-semibold text-[#151B26] truncate pr-4">Share {taskName}</h2>
+        <button onClick={onClose} className="p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded flex-shrink-0"><X size={16} /></button>
+      </div>
 
-        <div className="px-6 py-5 flex flex-col gap-5">
+      <div className="px-6 py-5 flex flex-col gap-5 overflow-y-auto">
           {/* Invite */}
           <div>
             <p className="text-sm font-semibold text-[#151B26] mb-2">Invite with email</p>
@@ -162,13 +154,12 @@ export default function ShareTaskModal({ taskId, taskName, projectId, projectNam
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-[#E8E8E9] flex justify-end">
-          <button onClick={copyLink} className="flex items-center gap-2 px-4 py-2 border border-[#E8E8E9] rounded-lg text-sm text-[#151B26] hover:bg-[#F5F5F5]">
-            <Link size={13} /> {copied ? "Copied!" : "Copy task link"}
-          </button>
-        </div>
+      {/* Footer */}
+      <div className="px-6 py-4 border-t border-[#E8E8E9] flex justify-end flex-shrink-0">
+        <button onClick={copyLink} className="flex items-center gap-2 px-4 py-2 border border-[#E8E8E9] rounded-lg text-sm text-[#151B26] hover:bg-[#F5F5F5]">
+          <Link size={13} /> {copied ? "Copied!" : "Copy task link"}
+        </button>
       </div>
-    </div>
+    </Sheet>
   );
 }

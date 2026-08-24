@@ -1,7 +1,24 @@
 @import "tailwindcss";
 
+:root {
+  /* Height of MobileTabBar's own content box (excludes safe-area inset, which
+     callers add on top via env(safe-area-inset-bottom)). Pages that sit under
+     the fixed tab bar reserve this much space so it never overlaps content. */
+  --bt-tabbar-h: 60px;
+}
+
 * {
   box-sizing: border-box;
+}
+
+@keyframes bt-sheet-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+@keyframes bt-fade-in {
+  from { opacity: 0; transform: translateY(4px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 body {

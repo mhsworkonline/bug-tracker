@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Providers from "@/components/Providers";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
+import MobileTabBar from "@/components/MobileTabBar";
 
 export const metadata: Metadata = {
   title: "Bug Tracker",
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="h-full">
         <ServiceWorkerRegister />
         <Providers>{children}</Providers>
+        <MobileTabBar />
       </body>
     </html>
   );

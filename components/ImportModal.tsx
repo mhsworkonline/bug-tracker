@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef } from "react";
 import { X, Upload, Loader2, CheckCircle2 } from "lucide-react";
+import Sheet from "@/components/Sheet";
 
 interface Props {
   projectId: string;
@@ -43,8 +44,8 @@ export default function ImportModal({ projectId, onClose, onImported }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-[420px]" onClick={e => e.stopPropagation()}>
+    <Sheet onClose={onClose} maxWidth="max-w-[420px]">
+      <div className="px-6 pt-2 sm:pt-6 pb-6 overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-semibold text-[#151B26]">Import tasks</h2>
           <button onClick={onClose} className="p-1 text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><X size={16} /></button>
@@ -84,6 +85,6 @@ export default function ImportModal({ projectId, onClose, onImported }: Props) {
           </>
         )}
       </div>
-    </div>
+    </Sheet>
   );
 }

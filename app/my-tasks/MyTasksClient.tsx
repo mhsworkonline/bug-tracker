@@ -145,7 +145,7 @@ export default function MyTasksClient({ userEmail, initialTasks }: { userEmail: 
   };
 
   return (
-    <div className="min-h-screen bg-[#FAFBFC]">
+    <div className="min-h-screen bg-[#FAFBFC] pb-[calc(var(--bt-tabbar-h)+env(safe-area-inset-bottom))] md:pb-0">
       {/* Header */}
       <div className="bg-white border-b border-[#E8E8E9] px-4 sm:px-8 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">

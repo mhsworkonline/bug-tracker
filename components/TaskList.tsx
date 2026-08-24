@@ -745,7 +745,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
             ) : (
               <div title={userEmail} className="w-7 h-7 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold cursor-default">{userInitials}</div>
             )}
-            <InboxPanel userEmail={userEmail} />
+            <div className="hidden md:block"><InboxPanel userEmail={userEmail} /></div>
             <button onClick={() => setShowTrash(true)} className="p-2 text-[#6B6F76] hover:bg-[#F5F5F5] rounded-md" title="Trash"><Trash2 size={16} /></button>
             <Link href="/my-tasks" className="hidden sm:flex px-2 py-1 text-xs text-[#6B6F76] border border-[#E8E8E9] rounded hover:bg-[#F5F5F5]">My Tasks</Link>
             <button onClick={handleLogout} className="px-2 py-1 text-xs text-[#6B6F76] border border-[#E8E8E9] rounded hover:bg-[#F5F5F5]">Logout</button>
@@ -1889,12 +1889,12 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
         />
       )}
       {copyToast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#151B26] text-white text-sm px-4 py-2 rounded-lg shadow-lg z-[200]">
+        <div className="fixed bottom-[calc(var(--bt-tabbar-h)+env(safe-area-inset-bottom)+1rem)] md:bottom-6 left-1/2 -translate-x-1/2 bg-[#151B26] text-white text-sm px-4 py-2 rounded-lg shadow-lg z-[200]">
           Link copied to clipboard
         </div>
       )}
       {templateSaved && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#151B26] text-white text-sm px-4 py-2 rounded-lg shadow-lg z-[200]">
+        <div className="fixed bottom-[calc(var(--bt-tabbar-h)+env(safe-area-inset-bottom)+1rem)] md:bottom-6 left-1/2 -translate-x-1/2 bg-[#151B26] text-white text-sm px-4 py-2 rounded-lg shadow-lg z-[200]">
           Template saved
         </div>
       )}

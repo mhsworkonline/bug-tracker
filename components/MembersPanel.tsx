@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { X, Plus, Trash2, Loader2, ChevronDown } from "lucide-react";
+import Sheet from "@/components/Sheet";
 
 interface Member { id: string; email: string; name?: string | null; role: "lead" | "member" }
 interface User   { id: string; email?: string; name?: string }
@@ -64,15 +65,14 @@ export default function MembersPanel({ projectId, canManage, onClose }: Props) {
   const nonMembers = allUsers.filter(u => u.email !== "admin@bugtracker.com" && !members.find(m => m.id === u.id));
 
   return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-[480px] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#E8E8E9]">
-          <h2 className="text-base font-semibold text-[#151B26]">Project members</h2>
-          <button onClick={onClose} className="p-1 text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><X size={16} /></button>
-        </div>
+    <Sheet onClose={onClose} maxWidth="max-w-[480px]">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-[#E8E8E9] flex-shrink-0">
+        <h2 className="text-base font-semibold text-[#151B26]">Project members</h2>
+        <button onClick={onClose} className="p-1 text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><X size={16} /></button>
+      </div>
 
         {canManage && (
-          <div className="px-5 py-3 border-b border-[#E8E8E9] flex gap-2">
+          <div className="px-5 py-3 border-b border-[#E8E8E9] flex gap-2 flex-shrink-0">
             <select value={selUser} onChange={e => setSelUser(e.target.value)}
               className="flex-1 border border-[#E8E8E9] rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#4573D9]">
               <option value="">— Add user</option>
@@ -135,7 +135,6 @@ export default function MembersPanel({ projectId, canManage, onClose }: Props) {
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }

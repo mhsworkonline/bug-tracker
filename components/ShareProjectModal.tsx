@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { X, Link, ChevronDown, Check, Loader2 } from "lucide-react";
+import Sheet from "@/components/Sheet";
 
 interface Share {
   id: string;
@@ -39,7 +40,6 @@ export default function ShareProjectModal({ projectId, projectName, ownerEmail, 
   const [inviteError, setInviteError] = useState("");
   const [copied, setCopied]       = useState(false);
   const [showRoleMenu, setShowRoleMenu] = useState(false);
-  const overlayRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     supabase.from("BT_project_shares").select("*").eq("project_id", projectId)
@@ -47,12 +47,6 @@ export default function ShareProjectModal({ projectId, projectName, ownerEmail, 
     fetch(`/api/projects/${projectId}/members`).then(r => r.json())
       .then(d => setMembers(d.members ?? []));
   }, [projectId]);
-
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", h);
-    return () => document.removeEventListener("keydown", h);
-  }, [onClose]);
 
   const handleInvite = async () => {
     const email = invite.trim().toLowerCase();
@@ -86,18 +80,17 @@ export default function ShareProjectModal({ projectId, projectName, ownerEmail, 
   };
 
   return (
-    <div ref={overlayRef} className="fixed inset-0 bg-black/30 z-[200] flex items-center justify-center p-4" onClick={e => { if (e.target === overlayRef.current) onClose(); }}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#E8E8E9]">
-          <h2 className="text-base font-semibold text-[#151B26]">Share {projectName}</h2>
-          <div className="flex items-center gap-2">
-            <button className="p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="5" cy="8" r="1.5" fill="currentColor"/><circle cx="8" cy="5" r="1.5" fill="currentColor"/><circle cx="11" cy="8" r="1.5" fill="currentColor"/></svg></button>
-            <button onClick={onClose} className="p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><X size={16} /></button>
-          </div>
+    <Sheet onClose={onClose} maxWidth="max-w-lg" zIndex={200}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-[#E8E8E9] flex-shrink-0">
+        <h2 className="text-base font-semibold text-[#151B26]">Share {projectName}</h2>
+        <div className="flex items-center gap-2">
+          <button className="p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="5" cy="8" r="1.5" fill="currentColor"/><circle cx="8" cy="5" r="1.5" fill="currentColor"/><circle cx="11" cy="8" r="1.5" fill="currentColor"/></svg></button>
+          <button onClick={onClose} className="p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><X size={16} /></button>
         </div>
+      </div>
 
-        <div className="px-6 py-5 flex flex-col gap-5">
+      <div className="px-6 py-5 flex flex-col gap-5 overflow-y-auto">
           {/* Invite */}
           <div>
             <p className="text-sm font-semibold text-[#151B26] mb-2">Invite with email</p>
@@ -195,14 +188,13 @@ export default function ShareProjectModal({ projectId, projectName, ownerEmail, 
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-[#E8E8E9] flex justify-end">
-          <button onClick={copyLink} className="flex items-center gap-2 px-4 py-2 border border-[#E8E8E9] rounded-lg text-sm text-[#151B26] hover:bg-[#F5F5F5]">
-            <Link size={13} /> {copied ? "Copied!" : "Copy project link"}
-          </button>
-        </div>
+      {/* Footer */}
+      <div className="px-6 py-4 border-t border-[#E8E8E9] flex justify-end flex-shrink-0">
+        <button onClick={copyLink} className="flex items-center gap-2 px-4 py-2 border border-[#E8E8E9] rounded-lg text-sm text-[#151B26] hover:bg-[#F5F5F5]">
+          <Link size={13} /> {copied ? "Copied!" : "Copy project link"}
+        </button>
       </div>
-    </div>
+    </Sheet>
   );
 }
 

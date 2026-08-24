@@ -105,7 +105,7 @@ export default function TaskDetailStandalone({ projectId, taskId, userEmail }: P
   if (!task || !project) return <div className="min-h-screen flex items-center justify-center text-sm text-[#6B6F76]">Task not found.</div>;
 
   return (
-    <div className="h-screen flex flex-col bg-[#FAFBFC]">
+    <div className="h-screen flex flex-col bg-[#FAFBFC] pb-[calc(var(--bt-tabbar-h)+env(safe-area-inset-bottom))] md:pb-0">
       {/* Back link */}
       <div className="px-4 py-3 border-b border-[#E8E8E9] bg-white flex items-center gap-2 flex-shrink-0">
         <button onClick={() => router.push(`/projects/${projectId}`)} className="text-sm text-[#6B6F76] hover:text-[#151B26]">
