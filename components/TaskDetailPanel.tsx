@@ -3,7 +3,7 @@
 import { useRef, useState, useEffect } from "react";
 import {
   X, Check, ThumbsUp, Link2, Maximize2, MoreHorizontal,
-  User, Calendar, ChevronDown, ChevronRight, ChevronUp, Plus, Share2,
+  User, Calendar, ChevronDown, ChevronRight, ChevronUp, ChevronLeft, Plus, Share2,
   Paperclip, FileText, Image as ImageIcon, Film, Trash2, Loader2, Copy,
   CheckCircle2, Circle,
 } from "lucide-react";
@@ -511,11 +511,13 @@ export default function TaskDetailPanel({
     return () => document.removeEventListener("keydown", h, true);
   }, []);
 
+  // On phones this covers the full screen already — the slide-in-from-right animation is
+  // what makes that read as "navigated to the task" rather than "a box popped up over the list."
   const panelClass = standalone
     ? "flex flex-col h-full overflow-hidden"
     : fullscreen
       ? "fixed inset-0 bg-white z-50 flex flex-col overflow-hidden"
-      : "fixed right-0 top-0 h-full w-full sm:w-[45%] bg-white z-50 shadow-xl flex flex-col overflow-hidden";
+      : "fixed right-0 top-0 h-full w-full sm:w-[45%] bg-white z-50 shadow-xl flex flex-col overflow-hidden max-sm:animate-[bt-slide-in-right_.22s_ease-out]";
 
   return (
     <>
@@ -523,18 +525,32 @@ export default function TaskDetailPanel({
       <div className={panelClass}>
 
         {/* Top bar */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[#E8E8E9] flex-shrink-0">
-          <button
-            onClick={() => toggleTask(task.id)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${
-              task.completed
-                ? "bg-[#14A454] border-[#14A454] text-white"
-                : "border-[#E8E8E9] text-[#6B6F76] hover:border-[#4573D9] hover:text-[#4573D9]"
-            }`}
-          >
-            <Check size={14} />
-            {task.completed ? "Completed" : "Mark complete"}
-          </button>
+        <div className="flex items-center justify-between px-2 sm:px-4 py-3 border-b border-[#E8E8E9] flex-shrink-0">
+          <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
+            {/* Back — mobile only; this is the page's primary way out, so it's a full-height,
+                clearly-labeled tap target rather than the small icon-only X used on desktop. */}
+            {!standalone && (
+              <button
+                onClick={handleClose}
+                title="Back"
+                className="sm:hidden flex items-center gap-0.5 -ml-1 pl-1 pr-2 py-2 text-[#151B26] active:bg-[#F5F5F5] rounded-lg flex-shrink-0"
+              >
+                <ChevronLeft size={24} strokeWidth={2.25} />
+                <span className="text-[15px] font-medium">Back</span>
+              </button>
+            )}
+            <button
+              onClick={() => toggleTask(task.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors flex-shrink-0 ${
+                task.completed
+                  ? "bg-[#14A454] border-[#14A454] text-white"
+                  : "border-[#E8E8E9] text-[#6B6F76] hover:border-[#4573D9] hover:text-[#4573D9]"
+              }`}
+            >
+              <Check size={14} />
+              <span className="hidden sm:inline">{task.completed ? "Completed" : "Mark complete"}</span>
+            </button>
+          </div>
 
           <div className="flex items-center gap-1.5">
             {/* Milestone toggle */}
@@ -631,7 +647,7 @@ export default function TaskDetailPanel({
                 </div>
               )}
             </div>
-            <button title="Close" onClick={handleClose} className="p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><X size={15} /></button>
+            <button title="Close" onClick={handleClose} className="hidden sm:flex p-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded"><X size={15} /></button>
           </div>
         </div>
 
