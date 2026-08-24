@@ -35,6 +35,15 @@ export default function TaskDetailStandalone({ projectId, taskId, userEmail }: P
     });
   }, [projectId, taskId]);
 
+  // Matches the project view's convention (TaskList.tsx) — project name leads, "Bug Tracker" is
+  // the suffix, never the other way round. This page has no server-rendered metadata of its own
+  // (project/task are fetched client-side), so without this it's stuck on the layout's bare
+  // "Bug Tracker" title the whole time it's open.
+  useEffect(() => {
+    document.title = project?.name ? `${project.name} — Bug Tracker` : "Bug Tracker";
+    return () => { document.title = "Bug Tracker"; };
+  }, [project?.name]);
+
   const updateTask: ProjectData["updateTask"] = async (id, updates) => {
     const current = task?.id === id ? task : tasks.find(t => t.id === id);
     const synced = syncCompletionWithStatus(current, updates);
