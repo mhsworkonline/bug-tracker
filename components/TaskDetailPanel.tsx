@@ -724,7 +724,7 @@ export default function TaskDetailPanel({
               }}
               onFocus={e => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
               onBlur={() => { if (document.hasFocus()) saveTitle(); }}
-              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); saveTitle(); } }}
+              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveTitle(); } }}
               className="w-full text-2xl font-bold text-[#151B26] outline-none border-b-2 border-[#4573D9] mb-4 bg-transparent resize-none overflow-hidden leading-tight"
             />
           ) : (
