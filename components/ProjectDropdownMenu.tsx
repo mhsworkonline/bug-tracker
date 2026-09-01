@@ -62,6 +62,8 @@ export default function ProjectDropdownMenu({
   const [pendingExport, setPendingExport] = useState<{ type: ExportType; includeCompleted: boolean } | null>(null);
   const [selectedSectionIds, setSelectedSectionIds] = useState<Set<string>>(new Set());
   const [includeUnsectioned, setIncludeUnsectioned] = useState(true);
+  // Picker lists sections alphabetically, independent of their board/list position order.
+  const sortedSections = [...sections].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
   const hasUnsectionedTasks = tasks.some(t => !t.section_id);
 
   useEffect(() => {
@@ -295,7 +297,7 @@ export default function ProjectDropdownMenu({
             {sections.length === 0 && !hasUnsectionedTasks && (
               <p className="px-3 py-4 text-xs text-[#9EA3AA] text-center">No sections yet</p>
             )}
-            {sections.map(s => (
+            {sortedSections.map(s => (
               <label key={s.id} className="flex items-center gap-2 px-3 py-2 text-sm text-[#151B26] cursor-pointer select-none hover:bg-[#FAFBFC]">
                 <input
                   type="checkbox"
