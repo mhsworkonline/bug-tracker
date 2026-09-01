@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import TaskDetailPanel from "@/components/TaskDetailPanel";
 import CustomizePanel from "@/components/CustomizePanel";
-import ProjectDropdownMenu from "@/components/ProjectDropdownMenu";
+import ProjectDropdownMenu, { type ExportType, type SectionExportFilter } from "@/components/ProjectDropdownMenu";
 import EditProjectModal from "@/components/EditProjectModal";
 import FilterPanel, { type ActiveFilters, DEFAULT_FILTERS } from "@/components/FilterPanel";
 import SortDropdown, { type SortKey } from "@/components/SortDropdown";
@@ -255,19 +255,12 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
   const scrollRef       = useRef<HTMLDivElement>(null);
   const scrollTimer     = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
-    try {
-      const saved = localStorage.getItem(`bt_collapsed_${projectId}`);
-      return saved ? new Set(JSON.parse(saved) as string[]) : new Set();
-    } catch { return new Set(); }
-  });
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
   // Tasks marked with the "Completed" status are hidden from every view (List/Board/
   // Calendar/Gantt/Dashboard) by default — this toggle reveals them. Persisted per-project
   // so it survives a refresh, same pattern as collapsed sections.
-  const [showCompletedTasks, setShowCompletedTasks] = useState(() => {
-    try { return localStorage.getItem(`bt_showcompleted_${projectId}`) === "1"; } catch { return false; }
-  });
+  const [showCompletedTasks, setShowCompletedTasks] = useState(false);
   const toggleShowCompleted = () => setShowCompletedTasks(prev => {
     const next = !prev;
     try { localStorage.setItem(`bt_showcompleted_${projectId}`, next ? "1" : "0"); } catch {}
@@ -278,9 +271,27 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
   // any task not in the section you're currently looking at. Unchecking this flattens
   // every task (still respecting search/filter/sort) into one continuous list so they
   // can all be sorted against each other at once. Persisted per-project like the toggle above.
-  const [showSections, setShowSections] = useState(() => {
-    try { return localStorage.getItem(`bt_showsections_${projectId}`) !== "0"; } catch { return true; }
-  });
+  const [showSections, setShowSections] = useState(true);
+
+  // These three all default to what the server rendered (no localStorage there) and only
+  // pick up the persisted value once mounted client-side — reading localStorage straight in
+  // the useState initializer ran during SSR too (where it just throws and falls back), so
+  // whenever a persisted value differed from the default, hydration saw two different trees
+  // and React tore the whole page down to re-render it client-side.
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`bt_collapsed_${projectId}`);
+      if (saved) setCollapsedSections(new Set(JSON.parse(saved) as string[]));
+    } catch {}
+    try {
+      setShowCompletedTasks(localStorage.getItem(`bt_showcompleted_${projectId}`) === "1");
+    } catch {}
+    try {
+      const savedShowSections = localStorage.getItem(`bt_showsections_${projectId}`);
+      if (savedShowSections !== null) setShowSections(savedShowSections !== "0");
+    } catch {}
+  }, [projectId]);
+
   const toggleShowSections = () => setShowSections(prev => {
     const next = !prev;
     try { localStorage.setItem(`bt_showsections_${projectId}`, next ? "1" : "0"); } catch {}
@@ -644,12 +655,16 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     setJiraConfirm({ title, body: describe(resolved.name, resolved.key), action, showSkipCompleted });
   };
 
-  const handleExport = async (type: "csv"|"excel"|"excel-delta"|"excel-attachments-only"|"excel-attachments-only-delta"|"pdf"|"json", includeCompleted = false) => {
+  const handleExport = async (type: ExportType, includeCompleted = false, sectionFilter: SectionExportFilter | null = null) => {
     if (!project) return;
     // Independent of the on-screen "Show completed" toggle — starts from the
     // search/filter/sort-applied list and only adds/drops completed-status tasks
     // based on the export dialog's own checkbox.
-    const exportTasks = includeCompleted ? filteredTasksBase : filteredTasksBase.filter(t => t.status !== "completed");
+    let base = filteredTasksBase;
+    if (sectionFilter) {
+      base = base.filter(t => t.section_id ? sectionFilter.ids.includes(t.section_id) : sectionFilter.includeUnsectioned);
+    }
+    const exportTasks = includeCompleted ? base : base.filter(t => t.status !== "completed");
     if (type === "csv")   exportToCSV(project, sections, exportTasks, taskTypes);
     if (type === "pdf")   await exportToPDF(project, sections, exportTasks, taskTypes);
     if (type === "json")  exportToJSON(project, sections, exportTasks);
