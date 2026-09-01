@@ -8,7 +8,7 @@ interface StoreState {
   projects: Project[];
   loading: boolean;
   addProject: (data: { name: string; description?: string; icon_bg: string }) => Promise<Project | null>;
-  deleteProject: (id: string) => Promise<void>;
+  deleteProject: (id: string) => Promise<{ ok: boolean; error?: string }>;
   updateProject: (p: Project) => void;
   refresh: () => Promise<void>;
 }
@@ -62,9 +62,19 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     return row;
   }, []);
 
-  const deleteProject = useCallback(async (id: string) => {
+  // Goes through the API route (not a direct client delete) so the "0 tasks" rule is
+  // enforced server-side too, and permission-checked the same way as PATCH. Only removed
+  // from local state once the delete actually succeeds — deletion cascades in the DB
+  // (sections, comments, activity log, etc. all reference BT_projects with ON DELETE
+  // CASCADE), so there's nothing else to clean up client-side.
+  const deleteProject = useCallback(async (id: string): Promise<{ ok: boolean; error?: string }> => {
+    const res = await fetch(`/api/projects/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      return { ok: false, error: body?.error ?? "Failed to delete project" };
+    }
     setProjects(prev => prev.filter(p => p.id !== id));
-    await supabase.from("BT_projects").delete().eq("id", id);
+    return { ok: true };
   }, []);
 
   const updateProject = useCallback((p: Project) => {

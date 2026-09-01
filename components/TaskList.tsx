@@ -169,7 +169,7 @@ export default function TaskList({ projectId, userEmail, initialData }: { projec
   }, [project?.name]);
 
   const { statuses, lockPriorities, taskTypes, membersCanManageMembers, membersCanExportJira, membersCanExportExcel } = useAdminSettings();
-  const { updateProject } = useStore();
+  const { updateProject, deleteProject } = useStore();
 
   const [userRole, setUserRole]               = useState<"lead" | "member">("member");
   const canManage = isAdmin || (membersCanManageMembers && userRole === "lead");
@@ -1864,6 +1864,17 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
             });
             const d = await r.json();
             if (d.project) { updateProject(d.project); updateProjectLocal(d.project); }
+          }}
+          onDelete={() => {
+            setConfirmDialog({
+              title: `Delete "${project.name}"?`,
+              body: "This project has no tasks in it. Deleting it removes the project and its sections permanently — this can't be undone.",
+              action: async () => {
+                const result = await deleteProject(project.id);
+                if (result.ok) router.push("/projects");
+                else alert(result.error ?? "Failed to delete project");
+              },
+            });
           }}
           onClose={() => setShowProjectMenu(false)}
         />

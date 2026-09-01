@@ -14,11 +14,12 @@ interface StatsData {
   overdueTasks: number;
   statusBreakdown: { name: string; value: number; color: string }[];
   tasksByProject: { name: string; tasks: number }[];
+  incompleteByProject: { name: string; value: number; color: string }[];
   activityByDay: { day: string; count: number }[];
 }
 
 export interface AdminDashboardRaw {
-  projects: { id: string; name: string }[];
+  projects: { id: string; name: string; icon_bg: string }[];
   tasks: { id: string; status: string | null; completed: boolean; due_date: string | null; project_id: string | null }[];
   logs: { created_at: string }[];
 }
@@ -61,6 +62,19 @@ function computeStats({ projects, tasks, logs }: AdminDashboardRaw): StatsData {
     .slice(0, 6)
     .map(p => ({ name: p.name.length > 14 ? p.name.slice(0, 13) + "…" : p.name, tasks: p.count }));
 
+  // Incomplete tasks per project, one slice per project (same color as its avatar
+  // elsewhere in the app) so the pie reads as "where the open work still is".
+  const projIncompleteMap: Record<string, { name: string; color: string; count: number }> = {};
+  for (const p of projects) projIncompleteMap[p.id] = { name: p.name, color: p.icon_bg || "#B0B3B8", count: 0 };
+  for (const t of tasks) {
+    if (!t.completed && t.project_id && projIncompleteMap[t.project_id])
+      projIncompleteMap[t.project_id].count++;
+  }
+  const incompleteByProject = Object.values(projIncompleteMap)
+    .filter(p => p.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .map(p => ({ name: p.name, value: p.count, color: p.color }));
+
   const dayMap: Record<string, number> = {};
   for (let i = 6; i >= 0; i--) {
     const d = new Date(Date.now() - i * 86400000);
@@ -79,6 +93,7 @@ function computeStats({ projects, tasks, logs }: AdminDashboardRaw): StatsData {
     overdueTasks,
     statusBreakdown,
     tasksByProject,
+    incompleteByProject,
     activityByDay,
   };
 }
@@ -146,6 +161,36 @@ export default function AdminDashboardClient({ raw }: { raw: AdminDashboardRaw }
                     <div key={i} className="flex items-center gap-2 text-xs">
                       <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: s.color }} />
                       <span className="text-[#6B6F76] capitalize truncate">{s.name}</span>
+                      <span className="ml-auto font-medium text-[#151B26]">{s.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Incomplete tasks by project */}
+          <div className="bg-white border border-[#E8E8E9] rounded-xl p-5">
+            <h2 className="text-sm font-semibold text-[#151B26] mb-4">Incomplete tasks by project</h2>
+            {data.incompleteByProject.length === 0 ? (
+              <p className="text-sm text-[#6B6F76] text-center py-6">No incomplete tasks</p>
+            ) : (
+              <div className="flex flex-wrap items-center gap-4">
+                <ResponsiveContainer width={120} height={120}>
+                  <PieChart>
+                    <Pie data={data.incompleteByProject} cx="50%" cy="50%" innerRadius={32} outerRadius={52} dataKey="value" strokeWidth={0}>
+                      {data.incompleteByProject.map((entry, i) => (
+                        <Cell key={i} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 6, border: "1px solid #E8E8E9" }} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="flex flex-col gap-1.5 flex-1 min-w-0 max-h-[120px] overflow-y-auto">
+                  {data.incompleteByProject.map((s, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs">
+                      <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: s.color }} />
+                      <span className="text-[#6B6F76] truncate">{s.name}</span>
                       <span className="ml-auto font-medium text-[#151B26]">{s.value}</span>
                     </div>
                   ))}

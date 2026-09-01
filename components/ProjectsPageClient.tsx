@@ -4,8 +4,9 @@ import { Search, Plus, ChevronDown, Loader2, Settings, LogOut, Users, FileSpread
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
-import ProjectsTable, { type ProjectSort, type SortableColumn } from "@/components/ProjectsTable";
+import ProjectsTable, { type ProjectSort, type SortableColumn, type ProjectCounts } from "@/components/ProjectsTable";
 import { createSupabaseBrowser } from "@/lib/auth-browser";
+import { supabase } from "@/lib/supabase";
 import { useAdminSettings } from "@/lib/adminSettingsContext";
 import { exportProjectsToExcel, exportProjectsToExcelAttachmentsOnly } from "@/lib/exportUtils";
 import { fetchProjectsExportData, type ProjectExportData } from "@/lib/fetchProjectExportData";
@@ -31,6 +32,7 @@ export default function ProjectsPageClient({ isAdmin, userEmail, allowedProjectI
   const [sinceLastExport, setSinceLastExport] = useState(false);
   const [taskResults, setTaskResults] = useState<TaskSearchHit[]>([]);
   const [searchingTasks, setSearchingTasks] = useState(false);
+  const [counts, setCounts] = useState<Record<string, ProjectCounts>>({});
 
   const canExport = isAdmin || membersCanExportExcel;
 
@@ -48,19 +50,53 @@ export default function ProjectsPageClient({ isAdmin, userEmail, allowedProjectI
     return [...visible].sort((a, b) => {
       if (sort.column === "name")
         return a.name.localeCompare(b.name, undefined, { sensitivity: "base" }) * dir;
+      if (sort.column === "sections")
+        return ((counts[a.id]?.sections ?? 0) - (counts[b.id]?.sections ?? 0)) * dir;
+      if (sort.column === "incompleteTasks")
+        return ((counts[a.id]?.incompleteTasks ?? 0) - (counts[b.id]?.incompleteTasks ?? 0)) * dir;
       // updated_at (falls back to created_at for rows never modified)
       const av = new Date(a.updated_at ?? a.created_at).getTime();
       const bv = new Date(b.updated_at ?? b.created_at).getTime();
       return (av - bv) * dir;
     });
-  }, [visible, sort]);
+  }, [visible, sort, counts]);
 
   const toggleSort = (column: SortableColumn) => {
     setSort(prev => {
-      if (prev?.column !== column) return { column, direction: column === "updated_at" ? "desc" : "asc" };
+      if (prev?.column !== column) {
+        const descByDefault = column === "updated_at" || column === "sections" || column === "incompleteTasks";
+        return { column, direction: descByDefault ? "desc" : "asc" };
+      }
       return { column, direction: prev.direction === "asc" ? "desc" : "asc" };
     });
   };
+
+  // Incomplete-task and section counts per project for the "Incomplete" and "Sections"
+  // columns — not fields on BT_projects, so pulled separately and merged in by id. Keyed
+  // off the ids (not the array identity) so it doesn't refetch on every optimistic update.
+  const projectIds = useMemo(() => projects.map(p => p.id).join(","), [projects]);
+  useEffect(() => {
+    const ids = projectIds ? projectIds.split(",") : [];
+    if (ids.length === 0) { setCounts({}); return; }
+    let cancelled = false;
+    (async () => {
+      const [{ data: taskRows }, { data: sectionRows }] = await Promise.all([
+        supabase.from("BT_tasks").select("project_id, completed").in("project_id", ids).is("deleted_at", null),
+        supabase.from("BT_sections").select("project_id").in("project_id", ids),
+      ]);
+      if (cancelled) return;
+      const next: Record<string, ProjectCounts> = {};
+      for (const id of ids) next[id] = { incompleteTasks: 0, totalTasks: 0, sections: 0 };
+      for (const r of taskRows ?? []) {
+        if (!r.project_id || !next[r.project_id]) continue;
+        next[r.project_id].totalTasks++;
+        if (!r.completed) next[r.project_id].incompleteTasks++;
+      }
+      for (const r of sectionRows ?? []) if (r.project_id && next[r.project_id]) next[r.project_id].sections++;
+      setCounts(next);
+    })();
+    return () => { cancelled = true; };
+  }, [projectIds]);
 
   // Cross-project task search — same query box, respects the same allow-list as the project list above.
   useEffect(() => {
@@ -125,7 +161,6 @@ export default function ProjectsPageClient({ isAdmin, userEmail, allowedProjectI
 
       // Advance the "since last report" baseline for every project actually included.
       const now = new Date().toISOString();
-      const { supabase } = await import("@/lib/supabase");
       await Promise.all(exportProjects.map(async p => {
         await supabase.from("BT_projects").update({ last_excel_export_at: now }).eq("id", p.id);
         updateProject({ ...p, last_excel_export_at: now });
@@ -226,6 +261,7 @@ export default function ProjectsPageClient({ isAdmin, userEmail, allowedProjectI
             sort={sort}
             onSort={toggleSort}
             onToggleSelect={toggleSelect}
+            counts={counts}
           />
         )}
     </>

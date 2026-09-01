@@ -3,7 +3,7 @@
 import { useRef, useEffect, useState } from "react";
 import {
   Settings, Users, Palette, Link2, Copy, Bookmark, Plus,
-  Upload, Download, Archive, ChevronRight, RotateCcw,
+  Upload, Download, Archive, ChevronRight, RotateCcw, Trash2,
 } from "lucide-react";
 import type { Project, Section, Task } from "@/lib/data";
 
@@ -22,12 +22,13 @@ interface Props {
   onSaveTemplate: () => void;
   onImport: () => void;
   onToggleActive: () => void;
+  onDelete: () => void;
   onClose: () => void;
 }
 
 export default function ProjectDropdownMenu({
-  project, canManage, canExport, position,
-  onExport, onEditSettings, onManageMembers, onCopyLink, onDuplicate, onSaveTemplate, onImport, onToggleActive, onClose,
+  project, tasks, canManage, canExport, position,
+  onExport, onEditSettings, onManageMembers, onCopyLink, onDuplicate, onSaveTemplate, onImport, onToggleActive, onDelete, onClose,
 }: Props) {
   const [showExport, setShowExport] = useState(false);
   const [includeCompleted, setIncludeCompleted] = useState(false);
@@ -184,6 +185,22 @@ export default function ProjectDropdownMenu({
           ? <><Archive size={14} className="text-[#6B6F76]" /> Archive project</>
           : <><RotateCcw size={14} className="text-[#6B6F76]" /> Restore project</>}
       </button>
+
+      {canManage && (
+        <>
+          <div className="my-1 border-t border-[#E8E8E9]" />
+          <button
+            disabled={tasks.length > 0}
+            title={tasks.length > 0 ? "Only projects with no tasks can be deleted" : undefined}
+            onClick={() => { if (tasks.length > 0) return; onDelete(); onClose(); }}
+            className={`w-full flex items-center gap-2.5 px-4 py-2 text-sm text-left ${
+              tasks.length > 0 ? "text-[#C8C9CC] cursor-not-allowed" : "text-[#E5534B] hover:bg-[#FFF5F5]"
+            }`}
+          >
+            <Trash2 size={14} className={tasks.length > 0 ? "text-[#D0D2D6]" : "text-[#E5534B]"} /> Delete project
+          </button>
+        </>
+      )}
     </div>
   );
 }
