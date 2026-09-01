@@ -12,6 +12,24 @@ import { exportProjectsToExcel, exportProjectsToExcelAttachmentsOnly } from "@/l
 import { fetchProjectsExportData, type ProjectExportData } from "@/lib/fetchProjectExportData";
 import { searchTasksAcrossProjects, type TaskSearchHit } from "@/lib/searchAcrossProjects";
 
+// Supabase/PostgREST caps a single select at 1000 rows by default — silently, no error,
+// just a truncated result. The counts query below spans every project at once, so once the
+// workspace crosses ~1000 active tasks combined it started undercounting. Pages through with
+// `.range()` (order by `id` so page boundaries stay stable) until a page comes back short.
+const PAGE_SIZE = 1000;
+async function fetchAllRows<T>(
+  page: (from: number, to: number) => PromiseLike<{ data: T[] | null }>
+): Promise<T[]> {
+  const all: T[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data } = await page(from, from + PAGE_SIZE - 1);
+    if (!data || data.length === 0) break;
+    all.push(...data);
+    if (data.length < PAGE_SIZE) break;
+  }
+  return all;
+}
+
 interface Props {
   isAdmin: boolean;
   userEmail?: string;
@@ -80,19 +98,23 @@ export default function ProjectsPageClient({ isAdmin, userEmail, allowedProjectI
     if (ids.length === 0) { setCounts({}); return; }
     let cancelled = false;
     (async () => {
-      const [{ data: taskRows }, { data: sectionRows }] = await Promise.all([
-        supabase.from("BT_tasks").select("project_id, completed").in("project_id", ids).is("deleted_at", null),
-        supabase.from("BT_sections").select("project_id").in("project_id", ids),
+      const [taskRows, sectionRows] = await Promise.all([
+        fetchAllRows<{ project_id: string | null; completed: boolean }>((from, to) =>
+          supabase.from("BT_tasks").select("project_id, completed").in("project_id", ids).is("deleted_at", null).order("id").range(from, to)
+        ),
+        fetchAllRows<{ project_id: string | null }>((from, to) =>
+          supabase.from("BT_sections").select("project_id").in("project_id", ids).order("id").range(from, to)
+        ),
       ]);
       if (cancelled) return;
       const next: Record<string, ProjectCounts> = {};
       for (const id of ids) next[id] = { incompleteTasks: 0, totalTasks: 0, sections: 0 };
-      for (const r of taskRows ?? []) {
+      for (const r of taskRows) {
         if (!r.project_id || !next[r.project_id]) continue;
         next[r.project_id].totalTasks++;
         if (!r.completed) next[r.project_id].incompleteTasks++;
       }
-      for (const r of sectionRows ?? []) if (r.project_id && next[r.project_id]) next[r.project_id].sections++;
+      for (const r of sectionRows) if (r.project_id && next[r.project_id]) next[r.project_id].sections++;
       setCounts(next);
     })();
     return () => { cancelled = true; };
