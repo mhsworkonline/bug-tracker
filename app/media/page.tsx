@@ -24,7 +24,11 @@ function MediaContent() {
       </div>
       <div className="flex-1 flex items-center justify-center p-4 overflow-auto">
         {type.startsWith("video/") ? (
-          <video src={url} controls autoPlay className="max-w-full max-h-[85vh]" />
+          // Browsers only honor autoPlay unprompted when the video starts muted — without
+          // it, autoplay is silently blocked and the video just sits there needing a manual
+          // press of play. Starting muted (controls still let you unmute) is what actually
+          // gets it playing the instant the tab opens.
+          <video src={url} controls autoPlay muted playsInline className="max-w-full max-h-[85vh]" />
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={url} alt={name} className="max-w-full max-h-[85vh] object-contain" />
