@@ -316,6 +316,9 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
   const [editingTaskId, setEditingTaskId]       = useState<string | null>(null);
   const [editingTaskName, setEditingTaskName]   = useState("");
 
+  const [editingProjectName, setEditingProjectName] = useState(false);
+  const [projectNameDraft, setProjectNameDraft]     = useState("");
+
   // Restore scroll position after data finishes loading
   useEffect(() => {
     if (loading) return;
@@ -553,6 +556,33 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     setShowProjectMenu(true);
   };
 
+  const startEditProjectName = () => {
+    if (!project) return;
+    setProjectNameDraft(project.name);
+    setEditingProjectName(true);
+  };
+  // Escape unmounts the input, which can itself trigger a native blur just before removal —
+  // this flag tells the blur handler that just fired "cancel, don't save" rather than commit
+  // whatever was left in the draft.
+  const cancelledProjectEditRef = useRef(false);
+  const cancelEditProjectName = () => {
+    cancelledProjectEditRef.current = true;
+    setEditingProjectName(false);
+  };
+  const saveProjectName = async () => {
+    setEditingProjectName(false);
+    if (cancelledProjectEditRef.current) { cancelledProjectEditRef.current = false; return; }
+    const trimmed = projectNameDraft.trim();
+    if (!project || !trimmed || trimmed === project.name) return;
+    const r = await fetch(`/api/projects/${project.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: trimmed }),
+    });
+    const d = await r.json();
+    if (d.project) { updateProject(d.project); updateProjectLocal(d.project); }
+  };
+
   const commitNewTask = async (sectionId: string) => {
     const name = newTaskName.trim();
     // Blank tasks must never land in the list — this fires on blur (clicking away commits
@@ -729,9 +759,29 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
           <div className="w-6 h-6 rounded flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: project.icon_bg }}>
             {project.name[0]}
           </div>
-          <button onClick={openProjectMenu} className="flex items-center gap-1 text-base sm:text-xl font-bold text-[#151B26] hover:bg-[#F5F5F5] px-1 sm:px-2 py-1 rounded min-w-0 truncate">
-            <span className="truncate">{project.name}</span> <ChevronDown size={18} className="flex-shrink-0" />
-          </button>
+          <div className="flex items-center gap-1 min-w-0">
+            {editingProjectName ? (
+              <input
+                autoFocus
+                value={projectNameDraft}
+                onChange={e => setProjectNameDraft(e.target.value)}
+                onFocus={e => e.target.select()}
+                onKeyDown={e => {
+                  if (e.key === "Enter") { e.currentTarget.blur(); }
+                  if (e.key === "Escape") { cancelEditProjectName(); }
+                }}
+                onBlur={saveProjectName}
+                className="text-base sm:text-xl font-bold text-[#151B26] px-1 sm:px-2 py-1 rounded border border-[#4573D9] outline-none min-w-0 w-full max-w-[60vw] sm:max-w-xs"
+              />
+            ) : (
+              <button onClick={startEditProjectName} className="text-base sm:text-xl font-bold text-[#151B26] hover:bg-[#F5F5F5] px-1 sm:px-2 py-1 rounded min-w-0 truncate text-left" title="Click to rename">
+                <span className="truncate">{project.name}</span>
+              </button>
+            )}
+            <button onClick={openProjectMenu} className="p-1 text-[#151B26] hover:bg-[#F5F5F5] rounded flex-shrink-0" title="Project menu">
+              <ChevronDown size={18} />
+            </button>
+          </div>
           <button onClick={toggleFavorite} className="p-1.5 rounded hover:bg-[#F5F5F5] hidden sm:flex" title={isFavorite ? "Remove from favorites" : "Add to favorites"}>
             <Star size={16} className={isFavorite ? "fill-[#F59E0B] text-[#F59E0B]" : "text-[#6B6F76]"} />
           </button>
