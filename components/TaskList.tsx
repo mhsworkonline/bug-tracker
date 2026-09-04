@@ -176,6 +176,12 @@ export default function TaskList({ projectId, userEmail, initialData }: { projec
   const canExport = isAdmin || membersCanExportExcel;
 
   const [showAddTaskMenu, setShowAddTaskMenu] = useState(false);
+  // Positioned via getBoundingClientRect + `fixed` rather than `absolute` — the toolbar row
+  // is horizontally scrollable (`overflow-x-auto`), and per the CSS overflow spec, having
+  // *any* non-visible overflow-x forces overflow-y to compute as `auto` too, which clips an
+  // `absolute` dropdown anchored inside it (it never becomes visible, however it's opened).
+  // `fixed` isn't clipped by an ancestor's overflow at all.
+  const [addTaskMenuPos, setAddTaskMenuPos] = useState<{ top: number; left: number } | null>(null);
   const [openSectionMenu, setOpenSectionMenu] = useState<string | null>(null);
   const [hoveredSection, setHoveredSection] = useState<string | null>(null);
   const [showEditProject, setShowEditProject] = useState(false);
@@ -313,6 +319,17 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     try { localStorage.setItem(`bt_collapsed_${projectId}`, JSON.stringify([])); } catch {}
     return new Set();
   });
+  const expandSection = (id: string) => setCollapsedSections(prev => {
+    if (!prev.has(id)) return prev;
+    const next = new Set(prev);
+    next.delete(id);
+    try { localStorage.setItem(`bt_collapsed_${projectId}`, JSON.stringify([...next])); } catch {}
+    return next;
+  });
+  // The inline "add task" row only renders while its section is expanded — clicking + on a
+  // collapsed section otherwise set addingIn with nothing on screen to show for it, silently
+  // doing nothing from the user's perspective. Expanding here guarantees the row appears.
+  const startAddingTask = (sectionId: string) => { expandSection(sectionId); setAddingIn(sectionId); };
   const [editingTaskId, setEditingTaskId]       = useState<string | null>(null);
   const [editingTaskName, setEditingTaskName]   = useState("");
 
@@ -695,6 +712,13 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
       base = base.filter(t => t.section_id ? sectionFilter.ids.includes(t.section_id) : sectionFilter.includeUnsectioned);
     }
     const exportTasks = includeCompleted ? base : base.filter(t => t.status !== "completed");
+    // "Since last report" only compares each task's updated_at against this one project-wide
+    // timestamp — it has no memory of which sections actually made it into a given export. So
+    // the baseline only advances on a real full export (every section); a section-filtered
+    // export leaves it untouched, otherwise anything left unedited in a skipped section would
+    // silently stop showing up in every future delta export instead of just being re-included
+    // (redundant, but never lost) until an actual full export catches it.
+    const isFullExport = sectionFilter === null;
     if (type === "csv")   exportToCSV(project, sections, exportTasks, taskTypes);
     if (type === "pdf")   await exportToPDF(project, sections, exportTasks, taskTypes);
     if (type === "json")  exportToJSON(project, sections, exportTasks);
@@ -708,12 +732,14 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
       if (!excelTasks.length) { alert("No new or changed tasks since the last report."); return; }
       await exportToExcel(project, sections, excelTasks, taskTypes);
 
-      const now = new Date().toISOString();
-      const { supabase } = await import("@/lib/supabase");
-      await supabase.from("BT_projects").update({ last_excel_export_at: now }).eq("id", project.id);
-      const updatedProject = { ...project, last_excel_export_at: now };
-      updateProject(updatedProject);
-      updateProjectLocal(updatedProject);
+      if (isFullExport) {
+        const now = new Date().toISOString();
+        const { supabase } = await import("@/lib/supabase");
+        await supabase.from("BT_projects").update({ last_excel_export_at: now }).eq("id", project.id);
+        const updatedProject = { ...project, last_excel_export_at: now };
+        updateProject(updatedProject);
+        updateProjectLocal(updatedProject);
+      }
     }
 
     if (type === "excel-attachments-only" || type === "excel-attachments-only-delta") {
@@ -725,12 +751,14 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
       if (!excelTasks.length) { alert("No new or changed tasks since the last report."); return; }
       await exportToExcelAttachmentsOnly(project, sections, excelTasks);
 
-      const now = new Date().toISOString();
-      const { supabase } = await import("@/lib/supabase");
-      await supabase.from("BT_projects").update({ last_excel_export_at: now }).eq("id", project.id);
-      const updatedProject = { ...project, last_excel_export_at: now };
-      updateProject(updatedProject);
-      updateProjectLocal(updatedProject);
+      if (isFullExport) {
+        const now = new Date().toISOString();
+        const { supabase } = await import("@/lib/supabase");
+        await supabase.from("BT_projects").update({ last_excel_export_at: now }).eq("id", project.id);
+        const updatedProject = { ...project, last_excel_export_at: now };
+        updateProject(updatedProject);
+        updateProjectLocal(updatedProject);
+      }
     }
   };
 
@@ -836,7 +864,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
           scrolls within itself (like the Tabs row above) instead of pushing the whole page. */}
       <div className="flex items-center justify-between px-3 sm:px-6 py-2 bg-white border-b border-[#E8E8E9] flex-shrink-0 gap-3 overflow-x-auto">
         {/* Add task split button */}
-        <div className="relative flex items-center flex-shrink-0">
+        <div className="relative flex items-center flex-shrink-0" data-addtask-menu>
           <div className="flex items-center border border-[#D0D2D6] rounded-md">
             <button
               onClick={async () => {
@@ -849,14 +877,19 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
             </button>
             <div className="w-px h-5 bg-[#D0D2D6] flex-shrink-0" />
             <button
-              onClick={e => { e.stopPropagation(); setShowAddTaskMenu(v => !v); }}
+              onClick={e => {
+                e.stopPropagation();
+                const r = e.currentTarget.getBoundingClientRect();
+                setAddTaskMenuPos({ top: r.bottom + 4, left: r.left });
+                setShowAddTaskMenu(v => !v);
+              }}
               className="flex items-center px-1.5 py-1.5 text-[#6B6F76] hover:bg-[#F5F5F5] rounded-r-md"
             >
               <ChevronDown size={14} />
             </button>
           </div>
-          {showAddTaskMenu && (
-            <div data-addtask-menu className="absolute left-0 top-full mt-1 w-52 bg-white border border-[#E8E8E9] rounded-xl shadow-lg py-1 z-50">
+          {showAddTaskMenu && addTaskMenuPos && (
+            <div className="fixed w-52 bg-white border border-[#E8E8E9] rounded-xl shadow-lg py-1 z-50" style={{ top: addTaskMenuPos.top, left: addTaskMenuPos.left }}>
               <button
                 onClick={async () => {
                   setShowAddTaskMenu(false);
@@ -1475,7 +1508,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                   className="ml-3 flex items-center gap-1 relative"
                   style={{ opacity: hoveredSection === section.id || openSectionMenu === section.id ? 1 : 0 }}
                 >
-                  <button onClick={() => setAddingIn(section.id)} className="p-1 text-[#6B6F76] hover:bg-[#F0F1F3] rounded" title="Add task"><Plus size={13} /></button>
+                  <button onClick={() => startAddingTask(section.id)} className="p-1 text-[#6B6F76] hover:bg-[#F0F1F3] rounded" title="Add task"><Plus size={13} /></button>
                   <button
                     onClick={e => { e.stopPropagation(); setOpenSectionMenu(openSectionMenu === section.id ? null : section.id); }}
                     className={`p-1 rounded ${openSectionMenu === section.id ? "bg-[#F0F1F3] text-[#151B26]" : "text-[#6B6F76] hover:bg-[#F0F1F3]"}`}

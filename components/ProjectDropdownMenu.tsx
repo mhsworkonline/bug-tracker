@@ -212,7 +212,7 @@ export default function ProjectDropdownMenu({
               <span className="flex-1">
                 Excel — Since last report
                 {project.last_excel_export_at && (
-                  <span className="block text-[11px] text-[#9EA3AA]">Last sent {new Date(project.last_excel_export_at).toLocaleDateString()}</span>
+                  <span className="block text-[11px] text-[#9EA3AA]">Last full report {new Date(project.last_excel_export_at).toLocaleDateString()}</span>
                 )}
               </span>
             </button>
@@ -228,7 +228,7 @@ export default function ProjectDropdownMenu({
               <span className="flex-1">
                 Excel — Attachments only (Since last report)
                 {project.last_excel_export_at && (
-                  <span className="block text-[11px] text-[#9EA3AA]">Last sent {new Date(project.last_excel_export_at).toLocaleDateString()}</span>
+                  <span className="block text-[11px] text-[#9EA3AA]">Last full report {new Date(project.last_excel_export_at).toLocaleDateString()}</span>
                 )}
               </span>
             </button>
