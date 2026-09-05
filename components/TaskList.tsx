@@ -1486,6 +1486,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                 {renamingSection === section.id ? (
                   <input
                     autoFocus
+                    onFocus={e => e.target.select()}
                     value={sectionNameDraft}
                     onChange={e => setSectionNameDraft(e.target.value)}
                     onBlur={() => { updateSection(section.id, sectionNameDraft.trim() || section.name); setRenamingSection(null); }}
