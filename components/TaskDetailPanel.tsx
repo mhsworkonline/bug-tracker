@@ -167,9 +167,13 @@ export default function TaskDetailPanel({
         fetch(`/api/projects/user-projects?email=${encodeURIComponent(userEmail)}`)
           .then(r => r.json())
           .then(d => {
+            // A failed/errored response still has a body — d.error is set, d.projects isn't
+            // — so this was silently emptying the "Move to" list instead of surfacing why.
+            if (d.error) { console.error("Failed to load projects to move task into:", d.error); return; }
             setMoveProjects((d.projects ?? []).filter((p: { id: string }) => p.id !== task.project_id));
             setMoveSections(d.sections ?? []);
-          });
+          })
+          .catch(err => console.error("Failed to load projects to move task into:", err));
       }
       // Clear Jira update indicator on open
       if (task.jira_has_updates) {

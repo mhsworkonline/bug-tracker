@@ -591,13 +591,20 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     if (cancelledProjectEditRef.current) { cancelledProjectEditRef.current = false; return; }
     const trimmed = projectNameDraft.trim();
     if (!project || !trimmed || trimmed === project.name) return;
-    const r = await fetch(`/api/projects/${project.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: trimmed }),
-    });
-    const d = await r.json();
-    if (d.project) { updateProject(d.project); updateProjectLocal(d.project); }
+    try {
+      const r = await fetch(`/api/projects/${project.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmed }),
+      });
+      const d = await r.json();
+      // This was silently no-op'ing on any failure (403/500/etc.) — the input just closed
+      // back to the old name with nothing telling you why the rename didn't take.
+      if (!r.ok || d.error) { alert(d.error ?? `Failed to rename project (HTTP ${r.status})`); return; }
+      if (d.project) { updateProject(d.project); updateProjectLocal(d.project); }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to rename project");
+    }
   };
 
   const commitNewTask = async (sectionId: string) => {
