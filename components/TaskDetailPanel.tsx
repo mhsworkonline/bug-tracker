@@ -327,13 +327,19 @@ export default function TaskDetailPanel({
           // Direct browser → R2 via presigned PUT. On a large file (video) over a slow
           // connection, the PUT itself can fail at the network level rather than coming
           // back with an HTTP error — fetch() throws a bare "Failed to fetch" for that,
-          // which isn't something a user can act on, so give it a clearer message here.
-          let res: Response;
-          try {
-            res = await fetch(cfg.upload_url, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
-          } catch {
-            throw new Error(`Upload of "${file.name}" was interrupted partway through — check your connection and try again.`);
+          // with no detail to act on. A transient blip mid-upload is common enough that
+          // it's worth a couple of silent retries (the presigned URL is good for repeat
+          // PUTs to the same key within its expiry) before giving up and surfacing it.
+          let res: Response | undefined;
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              res = await fetch(cfg.upload_url, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+              break;
+            } catch {
+              if (attempt < 2) await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+            }
           }
+          if (!res) throw new Error(`Upload of "${file.name}" was interrupted partway through — check your connection and try again.`);
           if (!res.ok) throw new Error("R2 upload failed");
           url = cfg.public_url;
 
