@@ -378,9 +378,9 @@ export default function ProjectsPageClient({ isAdmin, userEmail, allowedProjectI
                     {userEmail.slice(0, 2).toUpperCase()}
                   </Link>
                 ) : (
-                  <div className="w-7 h-7 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
+                  <Link href="/projects" className="w-7 h-7 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold flex-shrink-0 hover:opacity-80 transition-opacity" title="Browse projects">
                     {userEmail.slice(0, 2).toUpperCase()}
-                  </div>
+                  </Link>
                 )}
                 <span className="hidden sm:block text-sm text-[#6B6F76]">{userEmail}</span>
               </div>

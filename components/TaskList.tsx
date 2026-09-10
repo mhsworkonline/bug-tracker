@@ -843,7 +843,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
             {isAdmin ? (
               <Link href="/admin" title={userEmail} className="w-7 h-7 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold hover:opacity-80">{userInitials}</Link>
             ) : (
-              <div title={userEmail} className="w-7 h-7 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold cursor-default">{userInitials}</div>
+              <Link href="/projects" title={userEmail} className="w-7 h-7 rounded-full bg-[#D9822B] flex items-center justify-center text-white text-xs font-semibold hover:opacity-80">{userInitials}</Link>
             )}
             <div className="hidden md:block"><InboxPanel userEmail={userEmail} /></div>
             <button onClick={() => setShowTrash(true)} className="p-2 text-[#6B6F76] hover:bg-[#F5F5F5] rounded-md" title="Trash"><Trash2 size={16} /></button>
@@ -1309,7 +1309,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
         {(filterActive || sortKey !== "none" || searchQuery) && (
           <div className="px-6 py-1.5 bg-[#EEF2FB] border-b border-[#E8E8E9] flex items-center gap-2">
             <span className="text-xs text-[#4573D9]">Showing {filteredTasks.length} of {tasks.length} tasks</span>
-            <button onClick={() => { setActiveFilters(DEFAULT_FILTERS); setSortKey("none"); setSearchQuery(""); }} className="text-xs text-[#4573D9] underline">Clear all</button>
+            <button onClick={() => { setActiveFilters(DEFAULT_FILTERS); setSortKey("none"); setSearchQuery(""); }} className="text-xs text-[#4573D9] underline">Clear All Filters</button>
           </div>
         )}
 
