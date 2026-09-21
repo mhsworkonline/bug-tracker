@@ -1,11 +1,12 @@
 "use client";
-import { CheckCircle2, Check, User, Calendar, X } from "lucide-react";
+import { CheckCircle2, Check, User, Calendar, Flag, X } from "lucide-react";
 import { useAdminSettings } from "@/lib/adminSettingsContext";
 
 export interface ActiveFilters {
   incomplete: boolean;
   completed: boolean;
   justMyTasks: boolean;
+  revisit: boolean;
   dueThisWeek: boolean;
   dueNextWeek: boolean;
   statuses: string[];
@@ -17,7 +18,7 @@ export interface ActiveFilters {
 }
 
 export const DEFAULT_FILTERS: ActiveFilters = {
-  incomplete: false, completed: false, justMyTasks: false,
+  incomplete: false, completed: false, justMyTasks: false, revisit: false,
   dueThisWeek: false, dueNextWeek: false,
   statuses: [], priorities: [], taskTypes: [], assignees: [],
   createdFrom: null, createdTo: null,
@@ -34,6 +35,7 @@ const QUICK: Array<{ key: keyof ActiveFilters; label: string; Icon: React.Elemen
   { key: "incomplete",  label: "Incomplete tasks", Icon: CheckCircle2 },
   { key: "completed",   label: "Completed tasks",  Icon: Check },
   { key: "justMyTasks", label: "Just my tasks",    Icon: User },
+  { key: "revisit",     label: "To revisit",       Icon: Flag },
   { key: "dueThisWeek", label: "Due this week",    Icon: Calendar },
   { key: "dueNextWeek", label: "Due next week",    Icon: Calendar },
 ];
@@ -57,7 +59,7 @@ function Pills({ items, active, onToggle }: { items: { value: string; label: str
 
 export default function FilterPanel({ filters, onChange, onClose, members = [] }: Props) {
   const { statuses, priorities, taskTypes } = useAdminSettings();
-  const hasActive = filters.incomplete || filters.completed || filters.justMyTasks ||
+  const hasActive = filters.incomplete || filters.completed || filters.justMyTasks || filters.revisit ||
     filters.dueThisWeek || filters.dueNextWeek ||
     filters.statuses.length > 0 || filters.priorities.length > 0 ||
     filters.taskTypes.length > 0 || filters.assignees.length > 0 ||

@@ -953,7 +953,7 @@ export default function TaskDetailPanel({
               className="text-sm border border-[#E8E8E9] rounded px-2 py-1 outline-none focus:border-[#4573D9] text-[#151B26]"
             />
           </div>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mb-3">
             <span className="w-24 text-xs sm:text-sm text-[#6B6F76] font-medium flex-shrink-0">Due date</span>
             <button
               onClick={() => { dueDateRef.current?.showPicker?.(); dueDateRef.current?.click(); }}
@@ -970,6 +970,19 @@ export default function TaskDetailPanel({
               onChange={e => updateTask(task.id, { due_date: e.target.value || null })}
             />
           </div>
+          {[
+            { label: "Created", value: task.created_at },
+            { label: "Last modified", value: task.updated_at },
+          ].map((row, i, arr) => (
+            <div key={row.label} className={`flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 ${i === arr.length - 1 ? "mb-6" : "mb-3"}`}>
+              <span className="w-24 text-xs sm:text-sm text-[#6B6F76] font-medium flex-shrink-0">{row.label}</span>
+              <span className="text-sm text-[#6B6F76] px-2">
+                {row.value
+                  ? new Date(row.value).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+                  : "—"}
+              </span>
+            </div>
+          ))}
 
           {/* Subtasks */}
           <div className="mb-6">

@@ -112,6 +112,7 @@ export interface Task {
   position: number;
   parent_task_id?: string | null;
   is_milestone?: boolean;
+  revisit?: boolean;
   start_date?: string | null;
   jira_issue_key?: string | null;
   jira_has_updates?: boolean | null;

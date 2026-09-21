@@ -6,7 +6,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import {
   Star, ChevronDown, ChevronRight, ChevronUp, Share2, Settings2, Filter, ArrowUpDown,
   Search, Plus, User, Calendar, MoreHorizontal, Loader2, X, ChevronsUpDown, ChevronsDownUp,
-  FolderInput, Trash2,
+  FolderInput, Trash2, Flag,
 } from "lucide-react";
 import TaskDetailPanel from "@/components/TaskDetailPanel";
 import CustomizePanel from "@/components/CustomizePanel";
@@ -393,6 +393,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     if (activeFilters.incomplete && !activeFilters.completed)  r = r.filter(t => !t.completed);
     if (activeFilters.completed  && !activeFilters.incomplete) r = r.filter(t =>  t.completed);
     if (activeFilters.justMyTasks)  r = r.filter(t => t.assignee === userEmail);
+    if (activeFilters.revisit)      r = r.filter(t => t.revisit);
     if (activeFilters.dueThisWeek) { const { start, end } = getWeekRange(0); r = r.filter(t => { if (!t.due_date) return false; const d = new Date(t.due_date); return d >= start && d <= end; }); }
     if (activeFilters.dueNextWeek) { const { start, end } = getWeekRange(1); r = r.filter(t => { if (!t.due_date) return false; const d = new Date(t.due_date); return d >= start && d <= end; }); }
     if (activeFilters.createdFrom || activeFilters.createdTo) {
@@ -566,6 +567,12 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     if (selectedIds.has(taskId) && selectedIds.size > 1) return updateSelectedTasks(updates);
     return updateTask(taskId, updates);
   };
+
+  // Bulk "Revisit" action in the selection bar toggles based on the current selection:
+  // if every selected task is already flagged, the action undoes it; otherwise it flags
+  // the whole selection (including any already-flagged ones — a no-op for those).
+  const allSelectedMarkedRevisit = selectedIds.size > 0 &&
+    [...selectedIds].every(id => tasks.find(t => t.id === id)?.revisit);
 
   const openProjectMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -769,7 +776,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     }
   };
 
-  const filterActive = activeFilters.incomplete || activeFilters.completed || activeFilters.justMyTasks ||
+  const filterActive = activeFilters.incomplete || activeFilters.completed || activeFilters.justMyTasks || activeFilters.revisit ||
     activeFilters.dueThisWeek || activeFilters.dueNextWeek ||
     activeFilters.statuses.length > 0 || activeFilters.priorities.length > 0 ||
     activeFilters.taskTypes.length > 0 || activeFilters.assignees.length > 0 ||
@@ -1213,6 +1220,13 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
               </div>
             )}
           </div>
+          <button
+            onClick={() => updateSelectedTasks({ revisit: !allSelectedMarkedRevisit })}
+            className="flex items-center gap-1 text-white/80 hover:text-white"
+          >
+            <Flag size={13} className={allSelectedMarkedRevisit ? "text-red-400" : undefined} />
+            {allSelectedMarkedRevisit ? "Undo revisit" : "Revisit"}
+          </button>
           {(isAdmin || membersCanExportJira) && (
           <button
             onClick={() => {
@@ -1347,7 +1361,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                         />
                       ) : (
                         <>
-                          <span className={`min-w-0 truncate cursor-text flex items-center gap-1 ${task.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`} onClick={e => { if (window.innerWidth < 640) return; e.stopPropagation(); handleNameClick(task); }}>
+                          <span className={`min-w-0 truncate cursor-text flex items-center gap-1 ${task.completed ? "line-through text-[#6B6F76]" : task.revisit ? "text-red-400" : "text-[#151B26]"}`} onClick={e => { if (window.innerWidth < 640) return; e.stopPropagation(); handleNameClick(task); }}>
                             {task.is_milestone && <span className="text-amber-500 text-[10px] flex-shrink-0">◆</span>}
                             {task.name}
                             {task.jira_has_updates && <span title="Updated in Jira — open to review" className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0 inline-block" />}
@@ -1424,7 +1438,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                       className="flex-1 outline-none bg-transparent border-b border-[#4573D9] text-[#151B26]" onClick={e => e.stopPropagation()} />
                   ) : (
                     <>
-                      <span className={`min-w-0 truncate cursor-text flex items-center gap-1 ${task.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`}
+                      <span className={`min-w-0 truncate cursor-text flex items-center gap-1 ${task.completed ? "line-through text-[#6B6F76]" : task.revisit ? "text-red-400" : "text-[#151B26]"}`}
                         onClick={e => { if (window.innerWidth < 640) return; e.stopPropagation(); handleNameClick(task); }}>
                         {task.is_milestone && <span className="text-amber-500 text-[10px] flex-shrink-0">◆</span>}
                         {task.name}
@@ -1625,7 +1639,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
                         ) : (
                           <>
                             <span
-                              className={`min-w-0 truncate cursor-text flex items-center gap-1 ${task.completed ? "line-through text-[#6B6F76]" : "text-[#151B26]"}`}
+                              className={`min-w-0 truncate cursor-text flex items-center gap-1 ${task.completed ? "line-through text-[#6B6F76]" : task.revisit ? "text-red-400" : "text-[#151B26]"}`}
                               onClick={e => { if (window.innerWidth < 640) return; e.stopPropagation(); handleNameClick(task); }}
                             >
                               {task.name}
