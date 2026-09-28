@@ -5,7 +5,8 @@ export type TaskStatus =
   | "in_review"
   | "done"
   | "blocked"
-  | "completed";
+  | "completed"
+  | "discarded";
 
 export type TaskPriority = "show_stopper" | "high" | "medium" | "low";
 
@@ -34,6 +35,7 @@ export const STATUS_LABELS: Record<TaskStatus, string> = {
   done:         "Done",
   blocked:      "Blocked",
   completed:    "Completed",
+  discarded:    "Discarded",
 };
 
 // The one status that represents a task being finished. Changing a task's
@@ -42,7 +44,11 @@ export const STATUS_LABELS: Record<TaskStatus, string> = {
 // styling shows consistently everywhere, not just via the dedicated button.
 // "Done" is a plain intermediate status like any other — only "Completed" is
 // the terminal one (it's also the status TaskList hides by default).
-export const COMPLETED_STATUSES: TaskStatus[] = ["completed"];
+export const COMPLETED_STATUSES: TaskStatus[] = ["completed", "discarded"];
+
+// Statuses TaskList hides by default (behind "Show completed") and leaves out of exports
+// unless asked — "Discarded" is a second terminal status alongside "Completed".
+export const HIDDEN_BY_DEFAULT_STATUSES: string[] = ["completed", "discarded"];
 
 export const STATUS_COLORS: Record<TaskStatus, { bg: string; text: string }> = {
   not_started:  { bg: "#F3F4F6", text: "#6B6F76" },
@@ -52,6 +58,7 @@ export const STATUS_COLORS: Record<TaskStatus, { bg: string; text: string }> = {
   done:         { bg: "#D1FAE5", text: "#065F46" },
   blocked:      { bg: "#FEE2E2", text: "#B91C1C" },
   completed:    { bg: "#A7F3D0", text: "#047857" },
+  discarded:    { bg: "#E5E7EB", text: "#4B5563" },
 };
 
 export const PRIORITY_LABELS: Record<TaskPriority, string> = {

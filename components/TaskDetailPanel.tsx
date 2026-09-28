@@ -5,7 +5,7 @@ import {
   X, Check, ThumbsUp, Link2, Maximize2, MoreHorizontal,
   User, Calendar, ChevronDown, ChevronRight, ChevronUp, ChevronLeft, Plus, Share2,
   Paperclip, FileText, Image as ImageIcon, Film, Trash2, Loader2, Copy,
-  CheckCircle2, Circle,
+  CheckCircle2, Circle, Ban,
 } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
 import PriorityBadge from "@/components/PriorityBadge";
@@ -535,7 +535,7 @@ export default function TaskDetailPanel({
       <div className={panelClass}>
 
         {/* Top bar */}
-        <div className="flex items-center justify-between px-2 sm:px-4 py-3 border-b border-[#E8E8E9] flex-shrink-0">
+        <div className="@container flex items-center justify-between px-2 sm:px-4 py-3 border-b border-[#E8E8E9] flex-shrink-0">
           <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
             {/* Back — mobile only; this is the page's primary way out, so it's a full-height,
                 clearly-labeled tap target rather than the small icon-only X used on desktop. */}
@@ -549,16 +549,32 @@ export default function TaskDetailPanel({
                 <span className="text-[15px] font-medium">Back</span>
               </button>
             )}
+            {/* A discarded task is also `completed` (terminal status, same strikethrough/hidden
+                behavior) — but it isn't "Completed", so the two buttons key off status. */}
             <button
-              onClick={() => toggleTask(task.id)}
+              onClick={() => task.status === "discarded" ? updateTask(task.id, { status: "completed" }) : toggleTask(task.id)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors flex-shrink-0 ${
-                task.completed
+                task.completed && task.status !== "discarded"
                   ? "bg-[#14A454] border-[#14A454] text-white"
                   : "border-[#E8E8E9] text-[#6B6F76] hover:border-[#4573D9] hover:text-[#4573D9]"
               }`}
             >
               <Check size={14} />
-              <span className="hidden sm:inline">{task.completed ? "Completed" : "Mark complete"}</span>
+              <span className="hidden sm:inline">{task.completed && task.status !== "discarded" ? "Completed" : "Mark complete"}</span>
+            </button>
+            <button
+              onClick={() => updateTask(task.id, { status: task.status === "discarded" ? "not_started" : "discarded" })}
+              title={task.status === "discarded" ? "Restore this task" : "Mark discarded"}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors flex-shrink-0 ${
+                task.status === "discarded"
+                  ? "bg-[#6B6F76] border-[#6B6F76] text-white"
+                  : "border-[#E8E8E9] text-[#6B6F76] hover:border-[#6B6F76] hover:text-[#151B26]"
+              }`}
+            >
+              <Ban size={14} />
+              {/* Label only when the bar is wide enough — the side panel is ~45% of the screen and
+                  this button pushed the right-hand controls into overlapping otherwise. */}
+              <span className="hidden @[1000px]:inline whitespace-nowrap">{task.status === "discarded" ? "Discarded" : "Mark discarded"}</span>
             </button>
           </div>
 
@@ -567,15 +583,15 @@ export default function TaskDetailPanel({
             <button
               onClick={toggleMilestone}
               title={isMilestone ? "Remove milestone" : "Mark as milestone"}
-              className={`hidden sm:flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-full border transition-colors ${isMilestone ? "bg-amber-50 border-amber-300 text-amber-600" : "border-[#E8E8E9] text-[#6B6F76] hover:border-amber-300 hover:text-amber-600"}`}
+              className={`hidden sm:flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-full border transition-colors whitespace-nowrap flex-shrink-0 ${isMilestone ? "bg-amber-50 border-amber-300 text-amber-600" : "border-[#E8E8E9] text-[#6B6F76] hover:border-amber-300 hover:text-amber-600"}`}
             >
-              ◆ {isMilestone ? "Milestone" : "Set milestone"}
+              ◆<span className="hidden @[1000px]:inline">{isMilestone ? "Milestone" : "Set milestone"}</span>
             </button>
             {/* Follow toggle */}
             <button
               onClick={toggleFollow}
               title={isFollowing ? "Unfollow task" : "Follow task"}
-              className={`hidden sm:flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-full border transition-colors ${isFollowing ? "bg-[#EEF2FB] border-[#4573D9] text-[#4573D9]" : "border-[#E8E8E9] text-[#6B6F76] hover:border-[#4573D9] hover:text-[#4573D9]"}`}
+              className={`hidden sm:flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-full border transition-colors whitespace-nowrap flex-shrink-0 ${isFollowing ? "bg-[#EEF2FB] border-[#4573D9] text-[#4573D9]" : "border-[#E8E8E9] text-[#6B6F76] hover:border-[#4573D9] hover:text-[#4573D9]"}`}
             >
               {isFollowing ? "Following" : "Follow"}
             </button>

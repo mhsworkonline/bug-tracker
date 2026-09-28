@@ -102,7 +102,7 @@ export default function MyTasksClient({ userEmail, initialTasks }: { userEmail: 
 
   function groupTasks(): { label: string; tasks: MyTask[] }[] {
     if (groupBy === "status") {
-      const order = ["in_progress", "not_started", "in_review", "ready_for_qa", "blocked", "done", "completed"];
+      const order = ["in_progress", "not_started", "in_review", "ready_for_qa", "blocked", "done", "completed", "discarded"];
       const groups: Record<string, MyTask[]> = {};
       for (const t of visible) {
         const k = t.status ?? "not_started";

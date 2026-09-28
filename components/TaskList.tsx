@@ -19,7 +19,7 @@ import StatusBadge from "@/components/StatusBadge";
 import PriorityBadge from "@/components/PriorityBadge";
 import TaskTypeBadge from "@/components/TaskTypeBadge";
 import { useProject, type InitialProjectData } from "@/hooks/useProject";
-import type { ColumnKey, Task } from "@/lib/data";
+import { HIDDEN_BY_DEFAULT_STATUSES, type ColumnKey, type Task } from "@/lib/data";
 import { exportToCSV, exportToExcel, exportToExcelAttachmentsOnly, exportToPDF, exportToJSON } from "@/lib/exportUtils";
 import { createSupabaseBrowser } from "@/lib/auth-browser";
 import { useAdminSettings } from "@/lib/adminSettingsContext";
@@ -272,6 +272,14 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     try { localStorage.setItem(`bt_showcompleted_${projectId}`, next ? "1" : "0"); } catch {}
     return next;
   });
+  // Discarded tasks are hidden by default too, but behind their own toggle — separate from
+  // "Show completed" so you can look at one without wading through the other.
+  const [showDiscardedTasks, setShowDiscardedTasks] = useState(false);
+  const toggleShowDiscarded = () => setShowDiscardedTasks(prev => {
+    const next = !prev;
+    try { localStorage.setItem(`bt_showdiscarded_${projectId}`, next ? "1" : "0"); } catch {}
+    return next;
+  });
 
   // List view only: grouping tasks under section headers is the default, but it hides
   // any task not in the section you're currently looking at. Unchecking this flattens
@@ -291,6 +299,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     } catch {}
     try {
       setShowCompletedTasks(localStorage.getItem(`bt_showcompleted_${projectId}`) === "1");
+      setShowDiscardedTasks(localStorage.getItem(`bt_showdiscarded_${projectId}`) === "1");
     } catch {}
     try {
       const savedShowSections = localStorage.getItem(`bt_showsections_${projectId}`);
@@ -436,10 +445,14 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
   const completedHiddenCount = useMemo(() =>
     filteredTasksBase.filter(t => t.status === "completed").length,
     [filteredTasksBase]);
+  const discardedHiddenCount = useMemo(() =>
+    filteredTasksBase.filter(t => t.status === "discarded").length,
+    [filteredTasksBase]);
 
   const filteredTasks = useMemo(() =>
-    showCompletedTasks ? filteredTasksBase : filteredTasksBase.filter(t => t.status !== "completed"),
-    [filteredTasksBase, showCompletedTasks]);
+    filteredTasksBase.filter(t =>
+      (showCompletedTasks || t.status !== "completed") && (showDiscardedTasks || t.status !== "discarded")),
+    [filteredTasksBase, showCompletedTasks, showDiscardedTasks]);
 
   const sortedSections = useMemo(() =>
     [...sections].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })),
@@ -725,7 +738,7 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
     if (sectionFilter) {
       base = base.filter(t => t.section_id ? sectionFilter.ids.includes(t.section_id) : sectionFilter.includeUnsectioned);
     }
-    const exportTasks = includeCompleted ? base : base.filter(t => t.status !== "completed");
+    const exportTasks = includeCompleted ? base : base.filter(t => !HIDDEN_BY_DEFAULT_STATUSES.includes(t.status));
     // "Since last report" only compares each task's updated_at against this one project-wide
     // timestamp — it has no memory of which sections actually made it into a given export. So
     // the baseline only advances on a real full export (every section); a section-filtered
@@ -979,6 +992,15 @@ const [renamingSection, setRenamingSection]   = useState<string | null>(null);
               className="w-3.5 h-3.5 accent-[#4573D9] cursor-pointer"
             />
             Show completed{!showCompletedTasks && completedHiddenCount > 0 ? ` (${completedHiddenCount})` : ""}
+          </label>
+          <label className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-[#6B6F76] cursor-pointer select-none whitespace-nowrap" title="Discarded tasks are hidden from every view by default">
+            <input
+              type="checkbox"
+              checked={showDiscardedTasks}
+              onChange={toggleShowDiscarded}
+              className="w-3.5 h-3.5 accent-[#4573D9] cursor-pointer"
+            />
+            Show discarded{!showDiscardedTasks && discardedHiddenCount > 0 ? ` (${discardedHiddenCount})` : ""}
           </label>
           {activeTab === "List" && (
             <label className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-[#6B6F76] cursor-pointer select-none whitespace-nowrap" title="Uncheck to list every task in one flat, sortable list instead of grouped by section">
